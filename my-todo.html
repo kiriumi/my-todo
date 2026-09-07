@@ -1,0 +1,1517 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>案件状況 / 今週TODO 管理</title>
+<style>
+  :root {
+    --bg: #eef1f6;
+    --panel: #ffffff;
+    --border: #e2e6ec;
+    --text: #1f2733;
+    --muted: #6b7686;
+    --accent: #2f6feb;
+    --accent-soft: #eaf1fe;
+    --shadow: 0 1px 3px rgba(20,30,50,.08), 0 1px 2px rgba(20,30,50,.04);
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  /* ヘッダー＋フィルタ行をまとめて画面上部に完全固定 */
+  .topbar { position: sticky; top: 0; z-index: 20; background: var(--panel); border-bottom: 1px solid var(--border); }
+  header.app {
+    background: var(--panel);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  header.app h1 { font-size: 18px; margin: 0; font-weight: 700; }
+  .tabs { display: flex; gap: 4px; background: var(--bg); padding: 4px; border-radius: 8px; }
+  .tab {
+    border: none; background: transparent; padding: 7px 16px; border-radius: 6px;
+    cursor: pointer; font-size: 14px; color: var(--muted); font-weight: 600;
+  }
+  .tab.active { background: var(--panel); color: var(--accent); box-shadow: var(--shadow); }
+  .spacer { flex: 1; }
+  .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .btn {
+    border: 1px solid var(--border); background: var(--panel); color: var(--text);
+    padding: 7px 13px; border-radius: 7px; cursor: pointer; font-size: 13px; font-weight: 600;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .btn:hover { border-color: #c7cfdc; }
+  .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn.primary:hover { background: #2560d8; }
+  .btn.danger { color: #d64b45; }
+  .btn.danger:hover { border-color: #e0736e; background: #fdeceb; }
+  /* アイコンのみボタン（正方形寄り・少し大きめの絵文字） */
+  .btn.icon { padding: 7px 9px; font-size: 15px; line-height: 1; }
+  .btn.icon.primary { font-weight: 700; }
+  .btn:disabled { opacity: .4; cursor: default; }
+  .btn:disabled:hover { border-color: var(--border); background: var(--panel); }
+  select, input[type="text"] {
+    border: 1px solid var(--border); border-radius: 7px; padding: 6px 9px;
+    font-size: 13px; font-family: inherit; background: var(--panel); color: var(--text);
+  }
+  main { padding: 22px 24px 80px; max-width: 1500px; margin: 0 auto; }
+  .filters {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    padding: 10px 24px; background: var(--bg); border-top: 1px solid var(--border);
+  }
+  .filters label { font-size: 12px; color: var(--muted); font-weight: 600; }
+  .meta { font-size: 12px; color: var(--muted); }
+
+  section.cat { margin-bottom: 26px; }
+  section.cat > h2 {
+    font-size: 15px; margin: 0 0 10px; padding-left: 10px;
+    border-left: 4px solid var(--accent); display: flex; align-items: center; gap: 10px;
+  }
+  section.cat > h2 .count { font-size: 12px; color: var(--muted); font-weight: 500; }
+  section.cat > h2 .cat-name { cursor: text; padding: 1px 4px; border-radius: 4px; }
+  section.cat > h2 .cat-name:focus { outline: 2px solid var(--accent-soft); background: #fff; }
+  section.cat > h2 .sec-del { border: none; background: transparent; color: #c2ccd8; cursor: pointer; font-size: 14px; line-height: 1; padding: 3px 6px; border-radius: 5px; margin-left: auto; }
+  section.cat > h2 .sec-del:hover { color: #d64b45; background: #fdeceb; }
+  section.cat > h2 .sec-toggle { border: none; background: transparent; cursor: pointer; font-size: 12px; color: var(--muted); padding: 2px 4px; border-radius: 4px; line-height: 1; }
+  section.cat > h2 .sec-toggle:hover { color: var(--accent); background: var(--accent-soft); }
+  section.cat.collapsed > h2 { margin-bottom: 0; }
+  tr.empty-sec-row td { text-align: center; color: var(--muted); font-size: 12px; padding: 14px; }
+
+  /* section insert zone（セクションと表の下端の間で＋表示） */
+  .sec-insert-zone {
+    height: 14px; margin: -13px 0 -1px; position: relative; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .sec-insert-zone::before {
+    content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 2px;
+    background: var(--accent); transform: scaleY(0); transition: transform .1s;
+  }
+  .sec-insert-zone .plus {
+    position: absolute; width: 22px; height: 22px; border-radius: 50%;
+    background: var(--accent); color: #fff; font-size: 16px; line-height: 22px;
+    text-align: center; opacity: 0; transition: opacity .1s; z-index: 2;
+    box-shadow: 0 1px 3px rgba(20,30,50,.3);
+  }
+  .sec-insert-zone:hover::before { transform: scaleY(1); }
+  .sec-insert-zone:hover .plus { opacity: 1; }
+
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 9px 11px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { background: #fafbfd; font-size: 12px; color: var(--muted); font-weight: 700; white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  td.editable { cursor: text; min-width: 60px; white-space: pre-wrap; word-break: break-word; }
+  td.editable:focus { outline: 2px solid var(--accent-soft); background: #fff; }
+  td.done-cell { text-align: center; }
+  .row-done td { opacity: .5; }
+  .row-done td.content, .row-done td.work { text-decoration: line-through; }
+
+  /* 分類＋内容のグループ表示 */
+  tbody tr.group-odd td { background: #e3f2fb; }         /* 交互の帯（奇数グループ）：薄い水色。先頭グループは白 */
+  tbody tr.group-start td { border-top: 2px solid #5a9fd4; } /* グループ先頭の区切り線：帯の水色より濃い青 */
+  tbody tr:hover td { background: #d3ebf8; }             /* ホバーは帯より優先 */
+  /* グループ2行目以降の繰り返し値は非表示。クリック/ホバーで表示・編集可 */
+  td.cont-cell { color: transparent; }
+  td.cont-cell:focus, td.cont-cell:hover { color: inherit; }
+
+  .badge { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .status-select { border: none; background: transparent; font-weight: 600; font-size: 12px; padding: 3px 6px; border-radius: 20px; cursor: pointer; }
+  .prio-select { border: none; background: transparent; font-size: 16px; cursor: pointer; text-align: center; }
+
+  .col-narrow { width: 42px; }
+  .del-btn { border: none; background: transparent; color: #c2ccd8; cursor: pointer; font-size: 16px; line-height: 1; padding: 2px 6px; border-radius: 5px; }
+  .del-btn:hover { color: #d64b45; background: #fdeceb; }
+
+  /* sortable header */
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { color: var(--accent); }
+  th.sortable .arrow { font-size: 10px; color: #b7c0cd; margin-left: 3px; }
+  th.sortable.sorted .arrow { color: var(--accent); }
+
+  /* drag & drop 並び替え */
+  .col-drag { width: 26px; }
+  td.drag-cell { text-align: center; padding: 9px 2px; white-space: nowrap; }
+  .drag-handle { cursor: grab; color: #c2ccd8; font-size: 15px; line-height: 1; user-select: none; padding: 2px 3px; border-radius: 4px; vertical-align: middle; }
+  .drag-handle:hover { color: var(--accent); background: var(--accent-soft); }
+  .drag-handle:active { cursor: grabbing; }
+  tr.dragging { opacity: .4; }
+  tbody tr.row-selected td { background: #fff4d6; }            /* 選択中の行（グループ帯より優先） */
+  tbody tr.row-selected:hover td { background: #ffedbf; }
+  tr.drag-over-before td { box-shadow: inset 0 3px 0 -1px var(--accent); }
+  tr.drag-over-after td { box-shadow: inset 0 -3px 0 -1px var(--accent); }
+  th.sortable.disabled, .drag-handle.disabled { opacity: .3; pointer-events: none; }
+
+  /* section (セクション) 並び替え */
+  .sec-drag-handle { cursor: grab; color: #c2ccd8; font-size: 15px; margin-right: 4px; user-select: none; padding: 1px 4px; border-radius: 4px; }
+  .sec-drag-handle:hover { color: var(--accent); background: var(--accent-soft); }
+  .sec-drag-handle:active { cursor: grabbing; }
+  section.cat.sec-dragging { opacity: .45; }
+  section.cat.sec-drag-over-before { box-shadow: inset 0 4px 0 -1px var(--accent); }
+  section.cat.sec-drag-over-after { box-shadow: inset 0 -4px 0 -1px var(--accent); }
+
+  /* row insert (hover between rows to add) */
+  tr.insert-row td { padding: 0; border-bottom: none; height: 0; position: relative; }
+  .insert-zone {
+    height: 8px; margin: -4px 0; position: relative; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .insert-zone::before {
+    content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 2px;
+    background: var(--accent); transform: scaleY(0); transition: transform .1s;
+  }
+  .insert-zone .plus {
+    position: absolute; width: 20px; height: 20px; border-radius: 50%;
+    background: var(--accent); color: #fff; font-size: 15px; line-height: 20px;
+    text-align: center; opacity: 0; transition: opacity .1s; z-index: 2;
+    box-shadow: 0 1px 3px rgba(20,30,50,.3);
+  }
+  .insert-zone:hover::before { transform: scaleY(1); }
+  .insert-zone:hover .plus { opacity: 1; }
+
+  /* TODO view */
+  .todo-group { margin-bottom: 20px; }
+  .todo-group h3 { font-size: 13px; margin: 0 0 8px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+  .todo-item {
+    display: flex; align-items: flex-start; gap: 12px; background: var(--panel);
+    border: 1px solid var(--border); border-radius: 9px; padding: 11px 14px; margin-bottom: 7px; box-shadow: var(--shadow);
+  }
+  .todo-item.done { opacity: .55; }
+  .todo-item.done .todo-content { text-decoration: line-through; }
+  .todo-drag-handle { cursor: grab; color: #c2ccd8; font-size: 15px; line-height: 1; user-select: none; padding: 2px 3px; border-radius: 4px; flex-shrink: 0; margin-top: 1px; }
+  .todo-drag-handle:hover { color: var(--accent); background: var(--accent-soft); }
+  .todo-drag-handle:active { cursor: grabbing; }
+  .todo-item.todo-dragging { opacity: .4; }
+  .todo-item.todo-selected { background: #fff4d6; border-color: #e6d08a; }
+  .todo-item.todo-drop-before { box-shadow: inset 0 3px 0 -1px var(--accent); }
+  .todo-item.todo-drop-after { box-shadow: inset 0 -3px 0 -1px var(--accent); }
+  .todo-group h3.todo-drop-after { box-shadow: inset 0 -3px 0 -1px var(--accent); border-radius: 4px; }
+  .todo-check { width: 18px; height: 18px; cursor: pointer; flex-shrink: 0; margin-top: 1px; }
+  .todo-prio { font-size: 17px; width: 22px; text-align: center; flex-shrink: 0; }
+  .todo-main { flex: 1; min-width: 0; }
+  .todo-content { font-weight: 600; }
+  .todo-sub { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .todo-title-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .todo-note { font-size: 12px; color: #7a6a3a; background: #fdf6e3; border-left: 3px solid #e6d08a; padding: 2px 8px; border-radius: 4px; white-space: pre-wrap; word-break: break-word; }
+  .todo-cat-badge { font-size: 11px; padding: 1px 8px; border-radius: 12px; background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+  .todo-group h3 .prio-toggle { border: none; background: transparent; cursor: pointer; font-size: 11px; color: var(--muted); padding: 2px 4px; border-radius: 4px; line-height: 1; }
+  .todo-group h3 .prio-toggle:hover { color: var(--accent); background: var(--accent-soft); }
+
+  .empty { text-align: center; color: var(--muted); padding: 40px; }
+
+  /* modal */
+  .overlay { position: fixed; inset: 0; background: rgba(20,30,50,.4); display: none; align-items: center; justify-content: center; z-index: 50; }
+  .overlay.open { display: flex; }
+  .modal { background: var(--panel); border-radius: 12px; width: 480px; max-width: 92vw; padding: 22px; box-shadow: 0 12px 40px rgba(20,30,50,.25); }
+  .modal h3 { margin: 0 0 16px; font-size: 16px; }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 12px; color: var(--muted); font-weight: 600; margin-bottom: 4px; }
+  .field input, .field select, .field textarea { width: 100%; font-family: inherit; font-size: 13px; border: 1px solid var(--border); border-radius: 7px; padding: 7px 9px; }
+  .field textarea { resize: vertical; min-height: 44px; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+
+  .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: #1f2733; color: #fff; padding: 10px 20px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 100; }
+  .toast.show { opacity: 1; }
+  .hint { font-size: 11px; color: var(--muted); }
+  .action-anchor { margin-left: auto; display: inline-flex; gap: 8px; align-items: center; }
+</style>
+</head>
+<body>
+<div class="topbar">
+<header class="app">
+  <h1>📋 案件状況 / TODO 管理</h1>
+  <div class="tabs">
+    <button class="tab active" data-view="board">案件状況ボード</button>
+    <button class="tab" data-view="todo">今週TODO</button>
+  </div>
+  <div class="spacer"></div>
+  <div class="toolbar">
+    <span class="meta">📅 <span id="updateDate" title="ファイル名・見出しに使う更新日（実行日の週の月曜日）"></span></span>
+    <span class="meta">👤 <input type="text" id="exportName" style="width:80px" placeholder="名前を入力" title="ファイル名に使う名前"></span>
+    <button class="btn" id="exportBtn" title="Markdownで書き出し">⬇MD</button>
+  </div>
+</header>
+
+<!-- 各ビューのフィルタ行右端に移動して使うアクションボタン群 -->
+<span id="actionTools" style="display:inline-flex; gap:8px; align-items:center;">
+  <button class="btn icon" id="addCatBtn" title="セクションを追加">＋§</button>
+  <button class="btn icon primary" id="addBtn" title="作業を追加">＋</button>
+</span>
+
+  <div class="filters" id="boardFilters">
+    <label>セクション</label>
+    <select id="filterCat"><option value="">すべて</option></select>
+    <label>状況</label>
+    <select id="filterStatus"><option value="">すべて</option></select>
+    <button class="btn icon danger" id="deleteDoneBtn" title="完了したタスクを一括削除" style="margin-left:8px">🗑✓</button>
+    <button class="btn" id="collapseAllBtn" title="すべて折り畳む">▶ 折り畳み</button>
+    <button class="btn" id="expandAllBtn" title="すべて開く">▼ 開く</button>
+    <button class="btn icon" id="resetSortBtn" title="並び替えを全解除" disabled>⇅</button>
+    <span id="selectionBar" style="display:none; margin-left:8px; font-size:12px; color:var(--accent); font-weight:600;">
+      <span id="selCount">0</span> 件選択中
+      <button class="btn icon" id="clearSelBtn" title="選択を解除" style="margin-left:6px;">✕</button>
+    </span>
+    <span class="action-anchor" data-view="board"></span>
+    <span class="hint" style="flex-basis:100%;">セルをクリックで直接編集／行の ⠿ をドラッグで並び替え（別のセクションへ移すと分類も変更）／⠿ を Shift・Ctrlクリックで複数選択しまとめて移動・見出しの ▼ で折り畳み・⠿ で並び替え・名クリックで改名・🗑 で削除</span>
+  </div>
+  <div class="filters" id="todoFilters" style="display:none">
+    <button class="btn primary" id="refreshTodoBtn" title="ボードの未完了作業から今週TODOを再生成">🔄 更新</button>
+    <button class="btn icon danger" id="deleteDoneTodoBtn" title="完了したタスクを一括削除" style="margin-left:8px">🗑✓</button>
+    <button class="btn" id="collapsePrioAllBtn" title="すべて折り畳む">▶ 折り畳み</button>
+    <button class="btn" id="expandPrioAllBtn" title="すべて開く">▼ 開く</button>
+    <span id="todoSelectionBar" style="display:none; margin-left:8px; font-size:12px; color:var(--accent); font-weight:600;">
+      <span id="todoSelCount">0</span> 件選択中
+      <button class="btn icon" id="todoClearSelBtn" title="選択を解除" style="margin-left:6px;">✕</button>
+    </span>
+    <span class="action-anchor" data-view="todo"></span>
+    <span class="hint" style="flex-basis:100%;">⠿ を Shift・Ctrlクリックで複数選択・⠿ をドラッグで並び替え（別の優先度へ移すと優先度も変更）・優先度見出しの ▼ で折り畳み・🗓で個別切替</span>
+  </div>
+</div><!-- /.topbar -->
+
+<main>
+  <div id="boardView"></div>
+  <div id="todoView" style="display:none"></div>
+</main>
+
+<!-- Add/Edit modal -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h3 id="modalTitle">作業を追加</h3>
+    <div class="field"><label>セクション</label>
+      <select id="f_cat"></select>
+    </div>
+    <div class="field"><label>分類</label><input type="text" id="f_sub"></div>
+    <div class="field"><label>内容</label><input type="text" id="f_content"></div>
+    <div class="field"><label>作業</label><input type="text" id="f_work" placeholder="・で始めなくてもOK（自動整形）"></div>
+    <div style="display:flex; gap:12px">
+      <div class="field" style="flex:1"><label>期間</label><input type="text" id="f_period"></div>
+      <div class="field" style="flex:1"><label>期限・作業日</label><input type="text" id="f_due"></div>
+    </div>
+    <div style="display:flex; gap:12px">
+      <div class="field" style="flex:1"><label>状況</label><select id="f_status"></select></div>
+      <div class="field" style="flex:1"><label>優先度</label>
+        <select id="f_prio"><option value="">なし</option><option value="🔴">🔴 高</option><option value="🟡">🟡 中</option><option value="🟢">🟢 低</option></select>
+      </div>
+    </div>
+    <div class="field"><label>備考</label><textarea id="f_note"></textarea></div>
+    <div class="field"><label><input type="checkbox" id="f_week"> 今週TODOに含める</label></div>
+    <div class="modal-actions">
+      <button class="btn" id="cancelBtn">キャンセル</button>
+      <button class="btn primary" id="saveBtn">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+
+// ---- 定数 ----
+// セクションの初期リスト。追加・削除・並び替え後の実体は catOrder が保持する。
+const CATEGORIES = ["インフラ", "生成AI", "開発支援", "業務外", "その他"];
+const STATUSES = ["未着手","作業中","待ち","完了","未定"];
+const STATUS_COLORS = {
+  "未着手":     ["#ffe0e0","#b23636"],
+  "作業中":     ["#dce9ff","#1a4fb0"],
+  "待ち":       ["#fff3d6","#8a6100"],
+  "完了":       ["#d9f2e3","#1c7a45"],
+  "未定":       ["#eceff3","#616b7a"],
+};
+const STORAGE_KEY = "um_todo_app_v1";
+
+// ---- 初期データ ----
+// 公開用のため空。初回起動時はタスクなしの空のセクション（CATEGORIES）が表示される。
+let _id = 0;
+const SEED = [];
+
+// ---- 状態 ----
+let tasks = [];
+let catOrder = CATEGORIES.slice(); // セクションの表示順
+let currentView = "board";
+let editingId = null;
+let sortStates = {}; // セクション名 → { field: "sub"|"content", dir: 1|-1 }。並び替え中のセクションのみ保持
+let insertContext = null; // { category, beforeId } タスク挿入位置
+let collapsedCats = new Set(); // 折り畳み中のセクション名
+let collapsedPrios = new Set(); // 折り畳み中の優先度キー（今週TODO）
+let selectedIds = new Set(); // まとめて移動用に選択中のタスクid（永続化しない）
+let lastSelId = null; // Shift範囲選択の起点
+
+// catOrder を整える（重複除去。タスクに存在する未知の分類は末尾に補完）
+function normalizeCatOrder(){
+  const seen = new Set();
+  catOrder = catOrder.filter(c=>{ if (seen.has(c)) return false; seen.add(c); return true; });
+  // タスクが持つ分類で catOrder に無いものを末尾に追加（データ欠損時の保険）
+  tasks.forEach(t=>{ if (t.category && !seen.has(t.category)){ catOrder.push(t.category); seen.add(t.category); } });
+}
+
+function load(){
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (raw) {
+    try {
+      const s = JSON.parse(raw);
+      tasks = s.tasks || [];
+      catOrder = Array.isArray(s.catOrder) ? s.catOrder : CATEGORIES.slice();
+      collapsedCats = new Set(Array.isArray(s.collapsedCats) ? s.collapsedCats : []);
+      collapsedPrios = new Set(Array.isArray(s.collapsedPrios) ? s.collapsedPrios : []);
+      normalizeCatOrder();
+      _id = tasks.reduce((m,t)=>Math.max(m,t.id),0);
+      document.getElementById("updateDate").textContent = mondayStr();
+      document.getElementById("exportName").value = s.exportName || "";
+      return;
+    } catch(e){ /* fall through */ }
+  }
+  tasks = SEED.map(t=>({...t}));
+  catOrder = CATEGORIES.slice();
+  document.getElementById("updateDate").textContent = mondayStr();
+  document.getElementById("exportName").value = "";
+}
+function save(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    tasks, catOrder, collapsedCats: [...collapsedCats], collapsedPrios: [...collapsedPrios], exportName: document.getElementById("exportName").value
+  }));
+}
+// 実行日の週の月曜日を yyyymmdd 形式で返す（更新日として使用）
+function mondayStr(){
+  const d = new Date();
+  d.setHours(0,0,0,0);
+  const dow = d.getDay();                 // 0=日, 1=月, ... 6=土
+  const diff = (dow === 0 ? -6 : 1 - dow); // 日曜は前週月曜、それ以外は今週月曜へ
+  d.setDate(d.getDate() + diff);
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,"0");
+  const day = String(d.getDate()).padStart(2,"0");
+  return `${y}${m}${day}`;
+}
+
+// ---- ユーティリティ ----
+function esc(s){ return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+// グループ判定キー：分類＋内容＋期間が完全一致で同一グループ（区切りは値に現れない単位区切り文字）
+function groupKey(t){ return (t.sub||"") + "\x1f" + (t.content||"") + "\x1f" + (t.period||""); }
+function statusStyle(st){
+  const c = STATUS_COLORS[st] || ["#eceff3","#616b7a"];
+  return `background:${c[0]};color:${c[1]}`;
+}
+function toast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(t._h); t._h = setTimeout(()=>t.classList.remove("show"), 1800);
+}
+
+// ---- レンダリング：ボード ----
+function renderBoard(){
+  const host = document.getElementById("boardView");
+  refreshCatSelects();
+  const fCat = document.getElementById("filterCat").value;
+  const fStatus = document.getElementById("filterStatus").value;
+
+  let html = "";
+  const catsToShow = fCat ? [fCat] : catOrder;
+  const canDragSection = !fCat; // フィルタ中はセクション並び替え不可
+  const filtering = !!fStatus; // 絞り込み中は空セクションを隠す
+  let shown = 0;
+  for (const c of catsToShow){
+    let rows = tasks.filter(t=>t.category===c);
+    if (fStatus) rows = rows.filter(t=>t.status===fStatus);
+    // 絞り込み中で該当0件なら隠す。絞り込みなしなら空セクションも表示（＋作業追加・削除のため）
+    if (!rows.length && filtering) continue;
+    const st = sortStates[c];
+    if (st && st.field){
+      rows = rows.slice().sort((a,b)=>
+        compareByField(a, b, st.field) * st.dir);
+    }
+    shown++;
+    const secHandle = canDragSection
+      ? `<span class="sec-drag-handle" title="ドラッグでセクション並び替え">⠿</span>`
+      : "";
+    const collapsed = collapsedCats.has(c);
+    html += sectionInsertHtml(c); // このセクションの直前への追加ゾーン
+    html += `<section class="cat${collapsed?" collapsed":""}" data-cat="${esc(c)}"><h2><button class="sec-toggle" title="折り畳み/展開">${collapsed?"▶":"▼"}</button>${secHandle}<span class="cat-name" data-field="catname" title="クリックで名称変更" contenteditable>${esc(c)}</span> <span class="count">${rows.length}件</span><button class="sec-del" title="このセクションを削除">🗑</button></h2>`;
+    if (!collapsed){
+    html += `<div class="card"><table><thead><tr>
+      <th class="col-drag"></th><th class="col-narrow">完了</th>${sortableTh("分類","sub",st)}<th>内容</th>${sortableTh("期間","period",st)}<th>作業</th>
+      ${sortableTh("状況","status",st)}${sortableTh("期限・作業日","due",st)}<th>備考</th><th class="col-narrow">今週</th><th class="col-narrow"></th>
+    </tr></thead><tbody>`;
+    let prevKey = null, groupIdx = -1;
+    for (const t of rows){
+      const key = groupKey(t); // 分類＋内容＋期間でグループ判定
+      const isGroupStart = (key !== prevKey);
+      if (isGroupStart) groupIdx++;
+      prevKey = key;
+      html += insertRowHtml(c, t.id); // この行の直前へ挿入
+      html += rowHtml(t, { isGroupStart, groupEven: groupIdx % 2 === 0 });
+    }
+    if (!rows.length){
+      html += `<tr class="empty-sec-row"><td colspan="11">作業がありません。下の ＋ から追加してください</td></tr>`;
+    }
+    html += insertRowHtml(c, null);   // 末尾へ挿入
+    html += `</tbody></table></div>`;
+    }
+    html += `</section>`;
+  }
+  html += sectionInsertHtml(null); // 末尾（最終セクションと下端の間）への追加ゾーン
+  host.innerHTML = shown ? (html) : `<div class="empty">該当する作業がありません</div>${sectionInsertHtml(null)}`;
+  bindBoardEvents();
+}
+
+const collator = new Intl.Collator("ja", { numeric: true, sensitivity: "base" });
+
+// フィールド別の比較。状況は定義順（未着手→作業中→…）、期限・作業日は日付近い順、その他は文字列比較。
+function compareByField(a, b, field){
+  if (field === "status"){
+    const idx = s => { const i = STATUSES.indexOf(s); return i<0 ? STATUSES.length : i; };
+    return idx(a.status) - idx(b.status);
+  }
+  if (field === "due"){
+    const da = parseDueDays(a.due), db = parseDueDays(b.due);
+    // 期日が解析できない行（未定など）は末尾へ
+    if (da == null && db == null) return 0;
+    if (da == null) return 1;
+    if (db == null) return -1;
+    return da - db;
+  }
+  return collator.compare(a[field]||"", b[field]||"");
+}
+
+function sortableTh(label, field, st){
+  const active = st && st.field===field;
+  const arrow = active ? (st.dir===1 ? "▲" : "▼") : "⇅";
+  return `<th class="sortable ${active?"sorted":""}" data-sort="${field}">${label}<span class="arrow">${arrow}</span></th>`;
+}
+
+// colspan は全11列
+function insertRowHtml(category, beforeId){
+  return `<tr class="insert-row"><td colspan="11"><div class="insert-zone" data-cat="${esc(category)}" data-before="${beforeId==null?"":beforeId}"><span class="plus">＋</span></div></td></tr>`;
+}
+
+// セクション追加ゾーン。beforeCat の直前に追加。null なら末尾。
+function sectionInsertHtml(beforeCat){
+  return `<div class="sec-insert-zone" data-before-cat="${beforeCat==null?"":esc(beforeCat)}" title="ここにセクションを追加"><span class="plus">＋</span></div>`;
+}
+
+function rowHtml(t, opts){
+  opts = opts || {};
+  const statusOpts = STATUSES.map(s=>`<option ${s===t.status?"selected":""}>${s}</option>`).join("");
+  const contClass = opts.isGroupStart ? "" : " cont-cell"; // グループ2行目以降は繰り返し値を抑制
+  const periodContClass = contClass; // 期間もグループキーの一部。先頭行のみ表示
+  const isSel = selectedIds.has(t.id);
+  const trClasses = [
+    t.done ? "row-done" : "",
+    opts.isGroupStart ? "group-start" : "",
+    opts.groupEven ? "group-even" : "group-odd",
+    isSel ? "row-selected" : ""
+  ].filter(Boolean).join(" ");
+  return `<tr data-id="${t.id}" class="${trClasses}">
+    <td class="drag-cell"><span class="drag-handle" title="ドラッグで並び替え／Shift・Ctrlクリックで複数選択">⠿</span></td>
+    <td class="done-cell"><input type="checkbox" class="chk-done" ${t.done?"checked":""}></td>
+    <td class="editable${contClass}" data-field="sub" contenteditable>${esc(t.sub)}</td>
+    <td class="editable content${contClass}" data-field="content" contenteditable>${esc(t.content)}</td>
+    <td class="editable${periodContClass}" data-field="period" contenteditable>${esc(t.period)}</td>
+    <td class="editable work" data-field="work" contenteditable>${esc(t.work)}</td>
+    <td><select class="status-select" style="${statusStyle(t.status)}">${statusOpts}</select></td>
+    <td class="editable" data-field="due" contenteditable>${esc(t.due)}</td>
+    <td class="editable" data-field="note" contenteditable>${esc(t.note)}</td>
+    <td class="done-cell"><button class="del-btn week-btn" title="今週TODO 切替">${t.week?"🗓":"·"}</button></td>
+    <td class="done-cell"><button class="del-btn row-del" title="削除">🗑</button></td>
+  </tr>`;
+}
+
+function bindBoardEvents(){
+  const host = document.getElementById("boardView");
+  host.querySelectorAll("td.editable").forEach(td=>{
+    td.addEventListener("blur", ()=>{
+      const tr = td.closest("tr"); const t = getTask(+tr.dataset.id);
+      const field = td.dataset.field;
+      const val = td.innerText.trim();
+      if (t[field] === val) return;
+      // 分類・内容・期間はグループ構成／表示判定が変わるので帯を再計算
+      const groupField = (field === "sub" || field === "content" || field === "period");
+      // グループ先頭行でグループキー（分類・内容・期間）を変更した場合は、
+      // 同一グループの全タスクに同じ値を反映する（グループが分裂しないように）
+      if (groupField && tr.classList.contains("group-start")){
+        getGroupIds(t.id).forEach(id=>{ getTask(id)[field] = val; });
+      } else {
+        t[field] = val;
+      }
+      save();
+      if (groupField) renderBoard();
+    });
+    td.addEventListener("keydown", e=>{ if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); td.blur(); } });
+  });
+  host.querySelectorAll(".status-select").forEach(sel=>{
+    sel.addEventListener("change", ()=>{
+      const t = getTask(+sel.closest("tr").dataset.id);
+      t.status = sel.value; sel.style.cssText = statusStyle(t.status);
+      // 状況を「完了」にしたら完了チェックも入れる／それ以外なら外す
+      const newDone = (t.status === "完了");
+      if (t.done !== newDone){
+        t.done = newDone; save();
+        renderBoard(); return;
+      }
+      save();
+    });
+  });
+  host.querySelectorAll(".chk-done").forEach(chk=>{
+    chk.addEventListener("change", ()=>{
+      const tr = chk.closest("tr"); const t = getTask(+tr.dataset.id);
+      t.done = chk.checked;
+      // 完了チェックを入れたら状況を「完了」に。外したら直前の状況へ戻す
+      if (t.done){
+        if (t.status !== "完了"){ t.prevStatus = t.status; t.status = "完了"; }
+      } else {
+        if (t.status === "完了"){ t.status = t.prevStatus || "待ち"; }
+        delete t.prevStatus;
+      }
+      save();
+      renderBoard();
+    });
+  });
+  // 行の選択（複数まとめて移動用）。ハンドルを Shift/Ctrl クリックで選択。
+  host.querySelectorAll(".drag-handle").forEach(h=>{
+    h.addEventListener("click", e=>{
+      // Shift・Ctrl/Cmd を伴わない通常クリックはドラッグ用途なので選択しない
+      if (!e.shiftKey && !e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      const id = +h.closest("tr").dataset.id;
+      const orderedIds = [...host.querySelectorAll("tr[data-id]")].map(tr=>+tr.dataset.id);
+      if (e.shiftKey && lastSelId != null){
+        // Shift：直前の選択起点から範囲選択
+        const a = orderedIds.indexOf(lastSelId), b = orderedIds.indexOf(id);
+        if (a>=0 && b>=0){
+          const [lo,hi] = a<b ? [a,b] : [b,a];
+          for (let i=lo;i<=hi;i++) selectedIds.add(orderedIds[i]);
+        }
+      } else {
+        // Ctrl/Cmd（または起点未設定のShift）：個別トグル
+        if (selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id);
+      }
+      lastSelId = id;
+      renderBoard();
+      updateSelectionBar();
+    });
+  });
+  host.querySelectorAll(".week-btn").forEach(b=>{
+    b.addEventListener("click", ()=>{
+      const t = getTask(+b.closest("tr").dataset.id);
+      t.week = !t.week; b.textContent = t.week?"🗓":"·"; save();
+      toast(t.week?"今週TODOに追加しました":"今週TODOから外しました");
+    });
+  });
+  host.querySelectorAll(".row-del").forEach(b=>{
+    b.addEventListener("click", ()=>{
+      const t = getTask(+b.closest("tr").dataset.id);
+      tasks = tasks.filter(x=>x.id!==t.id); save(); renderBoard();
+      toast("削除しました");
+    });
+  });
+  // 列ヘッダーのソート（分類・内容）。クリックしたセクションのみに適用。
+  host.querySelectorAll("th.sortable").forEach(th=>{
+    th.addEventListener("click", ()=>{
+      const cat = th.closest("section.cat").dataset.cat;
+      const field = th.dataset.sort;
+      const cur = sortStates[cat];
+      if (cur && cur.field===field){
+        if (cur.dir===1){ sortStates[cat] = { field, dir:-1 }; }  // 昇順→降順
+        else { delete sortStates[cat]; }                          // 降順→解除（元の順）
+      } else { sortStates[cat] = { field, dir:1 }; }              // 別列→昇順
+      updateSortResetBar();
+      renderBoard();
+    });
+  });
+  // 行間ホバーでの＋挿入（モーダルではなく直接インラインで行追加）
+  host.querySelectorAll(".insert-zone").forEach(z=>{
+    z.addEventListener("click", ()=>{
+      const beforeRaw = z.dataset.before;
+      const beforeId = beforeRaw==="" ? null : +beforeRaw;
+      addRowInline(z.dataset.cat, beforeId, z.closest("tr"));
+    });
+  });
+  // セクションの削除
+  host.querySelectorAll(".sec-del").forEach(b=>{
+    b.addEventListener("click", ()=>{
+      const cat = b.closest("section.cat").dataset.cat;
+      deleteSection(cat);
+    });
+  });
+  // セクションの名称変更
+  host.querySelectorAll(".cat-name").forEach(el=>{
+    el.addEventListener("blur", ()=>{
+      const oldName = el.closest("section.cat").dataset.cat;
+      const newName = el.innerText.trim();
+      renameSection(oldName, newName, el);
+    });
+    el.addEventListener("keydown", e=>{ if(e.key==="Enter"){ e.preventDefault(); el.blur(); } });
+    // 名称編集中はセクションのドラッグを無効化（handle以外からのdrag誤発火防止）
+    el.addEventListener("mousedown", e=>e.stopPropagation());
+  });
+  // セクションの折り畳み/展開
+  host.querySelectorAll(".sec-toggle").forEach(b=>{
+    b.addEventListener("click", ()=>{
+      const cat = b.closest("section.cat").dataset.cat;
+      if (collapsedCats.has(cat)) collapsedCats.delete(cat); else collapsedCats.add(cat);
+      save(); renderBoard();
+    });
+  });
+  // セクション追加ゾーン
+  host.querySelectorAll(".sec-insert-zone").forEach(z=>{
+    z.addEventListener("click", ()=>{
+      const beforeCat = z.dataset.beforeCat || null;
+      addSection(beforeCat);
+    });
+  });
+  bindDragAndDrop(host);
+  bindSectionDnD(host);
+}
+
+// ---- セクションのドラッグ&ドロップ並び替え ----
+function bindSectionDnD(host){
+  let dragCat = null;
+  host.querySelectorAll("section.cat").forEach(sec=>{
+    const handle = sec.querySelector(".sec-drag-handle");
+    if (!handle) return; // フィルタ中はハンドルなし
+    handle.addEventListener("mousedown", ()=>{ sec.setAttribute("draggable","true"); });
+    handle.addEventListener("mouseup", ()=>{ sec.removeAttribute("draggable"); });
+
+    sec.addEventListener("dragstart", e=>{
+      // 行のドラッグ（tr[draggable]）と競合しないよう、section自身が対象のときのみ
+      if (e.target !== sec) return;
+      dragCat = sec.dataset.cat;
+      sec.classList.add("sec-dragging");
+      e.dataTransfer.effectAllowed = "move";
+      try { e.dataTransfer.setData("text/plain", "sec:"+dragCat); } catch(_){}
+    });
+    sec.addEventListener("dragend", ()=>{
+      sec.removeAttribute("draggable");
+      host.querySelectorAll(".sec-dragging,.sec-drag-over-before,.sec-drag-over-after")
+        .forEach(el=>el.classList.remove("sec-dragging","sec-drag-over-before","sec-drag-over-after"));
+      dragCat = null;
+    });
+    sec.addEventListener("dragover", e=>{
+      if (dragCat==null || sec.dataset.cat===dragCat) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      const rect = sec.getBoundingClientRect();
+      const after = (e.clientY - rect.top) > rect.height/2;
+      sec.classList.toggle("sec-drag-over-after", after);
+      sec.classList.toggle("sec-drag-over-before", !after);
+    });
+    sec.addEventListener("dragleave", ()=>{
+      sec.classList.remove("sec-drag-over-before","sec-drag-over-after");
+    });
+    sec.addEventListener("drop", e=>{
+      if (dragCat==null || sec.dataset.cat===dragCat) return;
+      e.preventDefault();
+      const rect = sec.getBoundingClientRect();
+      const after = (e.clientY - rect.top) > rect.height/2;
+      moveSection(dragCat, sec.dataset.cat, after);
+      dragCat = null;
+      renderBoard();
+    });
+  });
+}
+
+// dragCat を targetCat の前(after=false)/後(after=true)へ移動
+function moveSection(dragCat, targetCat, after){
+  const from = catOrder.indexOf(dragCat);
+  if (from<0) return;
+  catOrder.splice(from, 1);
+  let to = catOrder.indexOf(targetCat);
+  if (to<0){ catOrder.push(dragCat); save(); return; }
+  if (after) to += 1;
+  catOrder.splice(to, 0, dragCat);
+  save();
+  toast("セクションを並び替えました");
+}
+
+// ---- セクションの追加・削除・名称変更 ----
+// beforeCat を指定するとその直前に挿入。null/未指定なら末尾。
+function addSection(beforeCat){
+  const name = (prompt("追加するセクションの名称を入力してください") || "").trim();
+  if (!name) return;
+  if (catOrder.includes(name)){ toast(`「${name}」は既に存在します`); return; }
+  const idx = beforeCat ? catOrder.indexOf(beforeCat) : -1;
+  if (idx >= 0) catOrder.splice(idx, 0, name); else catOrder.push(name);
+  save();
+  renderBoard();
+  toast(`セクション「${name}」を追加しました`);
+  // 追加したセクションまでスクロール
+  const sec = [...document.querySelectorAll("#boardView section.cat")].find(s=>s.dataset.cat===name);
+  if (sec) sec.scrollIntoView({ block: "center", behavior: "smooth" });
+}
+
+function deleteSection(cat){
+  const count = tasks.filter(t=>t.category===cat).length;
+  const msg = count>0
+    ? `セクション「${cat}」を削除します。所属する ${count} 件の作業もすべて削除されます。よろしいですか？`
+    : `セクション「${cat}」を削除しますか？`;
+  if (!confirm(msg)) return;
+  tasks = tasks.filter(t=>t.category!==cat);
+  catOrder = catOrder.filter(c=>c!==cat);
+  save();
+  renderBoard();
+  toast(`セクション「${cat}」を削除しました`);
+}
+
+function renameSection(oldName, newName, el){
+  if (newName === oldName) return;
+  if (!newName){ el.innerText = oldName; toast("名称は空にできません"); return; }
+  if (catOrder.includes(newName)){ el.innerText = oldName; toast(`「${newName}」は既に存在します`); return; }
+  const idx = catOrder.indexOf(oldName);
+  if (idx>=0) catOrder[idx] = newName;
+  tasks.forEach(t=>{ if (t.category===oldName) t.category = newName; });
+  save();
+  renderBoard();
+  toast(`「${oldName}」を「${newName}」に変更しました`);
+}
+
+// ---- ドラッグ&ドロップ並び替え ----
+// あるセクションがソート中か
+function isCatSorted(cat){ return !!(sortStates[cat] && sortStates[cat].field); }
+
+function bindDragAndDrop(host){
+  host.querySelectorAll(".drag-handle").forEach(h=>{
+    const tr = h.closest("tr");
+    const cat = tr.closest("section.cat").dataset.cat;
+    if (isCatSorted(cat)){ // そのセクションがソート中は行ドラッグ不可（再描画で戻るため）
+      h.classList.add("disabled"); h.title = "このセクションはソート中です。解除すると並び替えできます";
+      return;
+    }
+    // ハンドルを掴んでいる間だけ行をドラッグ可能にする（contenteditableとの競合回避）
+    h.addEventListener("mousedown", ()=>{ tr.setAttribute("draggable", "true"); });
+    h.addEventListener("mouseup", ()=>{ tr.removeAttribute("draggable"); });
+  });
+
+  let dragIds = null;       // ドラッグ中のタスクid配列（グループ or 選択集合）
+  let dragAnchorId = null;  // 掴んだ行そのもの（グループ内並び替え用）
+  let isGroupMode = false;  // true=グループ単位ドラッグ / false=選択集合ドラッグ
+  host.querySelectorAll("tr[data-id]").forEach(tr=>{
+    tr.addEventListener("dragstart", e=>{
+      const id = +tr.dataset.id;
+      dragAnchorId = id;
+      // 選択が2件以上なら選択集合ごと、そうでなければ掴んだ行のグループ全体を移動対象にする
+      if (selectedIds.has(id) && selectedIds.size > 1){
+        dragIds = orderedSelectedIds();
+        isGroupMode = false;
+      } else {
+        dragIds = getGroupIds(id);
+        isGroupMode = true;
+      }
+      dragIds.forEach(x=>{
+        const r = host.querySelector(`tr[data-id="${x}"]`);
+        if (r) r.classList.add("dragging");
+      });
+      e.dataTransfer.effectAllowed = "move";
+      try { e.dataTransfer.setData("text/plain", dragIds.join(",")); } catch(_){}
+    });
+    tr.addEventListener("dragend", ()=>{
+      tr.removeAttribute("draggable");
+      host.querySelectorAll(".dragging,.drag-over-before,.drag-over-after")
+        .forEach(el=>el.classList.remove("dragging","drag-over-before","drag-over-after"));
+    });
+    const trCat = tr.closest("section.cat").dataset.cat;
+    tr.addEventListener("dragover", e=>{
+      const tid = +tr.dataset.id;
+      if (!dragIds) return;
+      if (isCatSorted(trCat)) return; // ソート中セクションへはドロップ不可
+      // グループ内の別の行 → その行の位置へ「掴んだ1行だけ」を移動（グループ内並び替え）
+      const intraGroup = isGroupMode && dragIds.includes(tid) && tid !== dragAnchorId;
+      if (dragIds.includes(tid) && !intraGroup) return; // 掴んだ行自身 / 選択集合内はドロップ不可
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      const rect = tr.getBoundingClientRect();
+      const after = (e.clientY - rect.top) > rect.height/2;
+      host.querySelectorAll(".drag-over-before,.drag-over-after")
+        .forEach(el=>el.classList.remove("drag-over-before","drag-over-after"));
+      let anchor;
+      if (intraGroup){
+        // グループ内並び替えは対象行に直接ハイライト
+        anchor = tr;
+      } else {
+        // 別グループ境界にスナップ：先頭行の上 / 末尾行の下 にハイライト
+        const grp = getGroupIds(tid);
+        anchor = host.querySelector(`tr[data-id="${after ? grp[grp.length-1] : grp[0]}"]`) || tr;
+      }
+      anchor.classList.toggle("drag-over-after", after);
+      anchor.classList.toggle("drag-over-before", !after);
+    });
+    tr.addEventListener("dragleave", ()=>{
+      host.querySelectorAll(".drag-over-before,.drag-over-after")
+        .forEach(el=>el.classList.remove("drag-over-before","drag-over-after"));
+    });
+    tr.addEventListener("drop", e=>{
+      e.preventDefault();
+      const tid = +tr.dataset.id;
+      if (!dragIds) return;
+      if (isCatSorted(trCat)) return; // ソート中セクションへはドロップ不可
+      const intraGroup = isGroupMode && dragIds.includes(tid) && tid !== dragAnchorId;
+      if (dragIds.includes(tid) && !intraGroup) return;
+      const rect = tr.getBoundingClientRect();
+      const after = (e.clientY - rect.top) > rect.height/2;
+      if (intraGroup){
+        // グループ内並び替え：掴んだ1行だけを対象行の位置へ移動
+        moveTasks([dragAnchorId], tid, after);
+      } else {
+        // 別グループの境界（先頭/末尾）へ正規化してグループごと移動
+        const grp = getGroupIds(tid);
+        const snapId = after ? grp[grp.length-1] : grp[0];
+        moveTasks(dragIds, snapId, after);
+      }
+      dragIds = null;
+      renderBoard();
+    });
+  });
+
+  // 別のセクションが空でもドロップできるよう、挿入ゾーンもドロップ先にする
+  host.querySelectorAll(".insert-zone").forEach(z=>{
+    z.addEventListener("dragover", e=>{
+      if (!dragIds) return;
+      if (isCatSorted(z.dataset.cat)) return; // ソート中セクションへはドロップ不可
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      z.closest("tr").classList.add("drag-over-after");
+    });
+    z.addEventListener("dragleave", ()=>{ z.closest("tr").classList.remove("drag-over-after"); });
+    z.addEventListener("drop", e=>{
+      e.preventDefault();
+      if (!dragIds) return;
+      if (isCatSorted(z.dataset.cat)) return; // ソート中セクションへはドロップ不可
+      const beforeRaw = z.dataset.before;
+      const beforeId = beforeRaw==="" ? null : +beforeRaw;
+      // グループモードで、ドラッグ中グループ内の挿入ゾーンなら「掴んだ1行だけ」をその位置へ（グループ内並び替え）
+      if (isGroupMode && beforeId!=null && dragIds.includes(beforeId)){
+        moveTasksToZone([dragAnchorId], z.dataset.cat, beforeId);
+      } else {
+        // それ以外はグループ途中への割り込みを防ぐため beforeId をそのグループ先頭に正規化
+        const bid = beforeId==null ? null : getGroupIds(beforeId)[0];
+        moveTasksToZone(dragIds, z.dataset.cat, bid);
+      }
+      dragIds = null;
+      renderBoard();
+    });
+  });
+}
+
+// selectedIds を、現在のタスク配列順に並べて返す
+function orderedSelectedIds(){
+  return tasks.filter(t=>selectedIds.has(t.id)).map(t=>t.id);
+}
+
+// 指定idと同一グループ（同一セクション内で連続しキー一致する行の並び）の全idを tasks 順で返す
+function getGroupIds(id){
+  const base = getTask(id);
+  if (!base) return [id];
+  const secTasks = tasks.filter(t => t.category === base.category); // tasks順＝rowsと同順
+  const idx = secTasks.findIndex(t => t.id === id);
+  if (idx < 0) return [id];
+  const key = groupKey(base);
+  let lo = idx, hi = idx;
+  while (lo > 0 && groupKey(secTasks[lo-1]) === key) lo--;
+  while (hi < secTasks.length-1 && groupKey(secTasks[hi+1]) === key) hi++;
+  return secTasks.slice(lo, hi+1).map(t => t.id);
+}
+
+// dragIds のタスク群を targetId の前(after=false)/後(after=true)へまとめて移動。
+// セクションが異なる場合は移動先のセクションに変更する。移動対象の元の並び順は保持する。
+function moveTasks(dragIds, targetId, after){
+  const target = getTask(targetId);
+  if (!target) return;
+  // 元の並び順を保った移動対象リストを作る
+  const movedTasks = tasks.filter(t=>dragIds.includes(t.id));
+  if (!movedTasks.length) return;
+  const changedCat = movedTasks.some(t=>t.category !== target.category);
+  // いったん取り除く
+  tasks = tasks.filter(t=>!dragIds.includes(t.id));
+  movedTasks.forEach(t=>{ t.category = target.category; });
+  // 挿入位置を再計算（取り除いた後の配列で）
+  let to = tasks.findIndex(t=>t.id===targetId);
+  if (to<0){ tasks.push(...movedTasks); save(); return; }
+  if (after) to += 1;
+  tasks.splice(to, 0, ...movedTasks);
+  save();
+  if (changedCat) toast(`${movedTasks.length}件を「${target.category}」に移動しました`);
+  else if (movedTasks.length>1) toast(`${movedTasks.length}件を移動しました`);
+  clearSelection();
+}
+
+// 挿入ゾーンへのドロップ：指定セクションの beforeId の直前（null なら末尾）へまとめて移動
+function moveTasksToZone(dragIds, category, beforeId){
+  const movedTasks = tasks.filter(t=>dragIds.includes(t.id));
+  if (!movedTasks.length) return;
+  const changedCat = movedTasks.some(t=>t.category !== category);
+  tasks = tasks.filter(t=>!dragIds.includes(t.id));
+  movedTasks.forEach(t=>{ t.category = category; });
+  if (beforeId != null){
+    const idx = tasks.findIndex(t=>t.id===beforeId);
+    if (idx>=0){
+      tasks.splice(idx, 0, ...movedTasks);
+    } else { tasks.push(...movedTasks); }
+  } else {
+    // 末尾：同じセクションの最後の要素の直後へ
+    let lastIdx = -1;
+    tasks.forEach((t,i)=>{ if (t.category===category) lastIdx = i; });
+    if (lastIdx>=0){
+      tasks.splice(lastIdx+1, 0, ...movedTasks);
+    } else { tasks.push(...movedTasks); }
+  }
+  save();
+  if (changedCat) toast(`${movedTasks.length}件を「${category}」に移動しました`);
+  else if (movedTasks.length>1) toast(`${movedTasks.length}件を移動しました`);
+  clearSelection();
+}
+
+// 選択状態をクリア
+function clearSelection(){
+  selectedIds.clear(); lastSelId = null;
+  if (currentView === "todo") renderTodo(); else renderBoard();
+  updateSelectionBar();
+}
+
+// 完了したタスクを一括削除
+function deleteDoneTasks(){
+  const doneCount = tasks.filter(t=>t.done).length;
+  if (doneCount===0){ toast("完了したタスクはありません"); return; }
+  if (!confirm(`完了した ${doneCount} 件のタスクを削除します。よろしいですか？`)) return;
+  tasks = tasks.filter(t=>!t.done);
+  save();
+  renderBoard();
+  toast(`完了した ${doneCount} 件を削除しました`);
+}
+
+// 選択件数バーの表示更新（ボード・今週TODO 両方）
+function updateSelectionBar(){
+  const n = selectedIds.size;
+  [["selectionBar","selCount"],["todoSelectionBar","todoSelCount"]].forEach(([barId,cntId])=>{
+    const bar = document.getElementById(barId);
+    const cnt = document.getElementById(cntId);
+    if (!bar) return;
+    if (n > 0){ cnt.textContent = n; bar.style.display = ""; }
+    else { bar.style.display = "none"; }
+  });
+}
+
+// 並び替え中のセクションがあれば「全解除」ボタンを活性化（普段は非活性で常時表示）
+function updateSortResetBar(){
+  const btn = document.getElementById("resetSortBtn");
+  if (!btn) return;
+  btn.disabled = Object.keys(sortStates).length === 0;
+}
+
+// すべてのセクションの並び替えを解除
+function resetAllSort(){
+  sortStates = {};
+  updateSortResetBar();
+  renderBoard();
+  toast("並び替えを全解除しました");
+}
+
+// 行間の＋クリック：モーダルを開かず直接インラインで行追加。
+// 1つ上のタスク（同一セクション内）の 分類・内容・期間 を引き継ぐ。
+function addRowInline(category, beforeId, zoneTr){
+  // DOM上で挿入ゾーンの直前にある実タスク行 = 「1つ上のタスク」
+  let prevTask = null;
+  if (zoneTr){
+    let el = zoneTr.previousElementSibling;
+    while (el && !el.matches("tr[data-id]")) el = el.previousElementSibling;
+    if (el){
+      const pt = getTask(+el.dataset.id);
+      if (pt && pt.category === category) prevTask = pt;
+    }
+  }
+  const newTask = {
+    id: ++_id, category,
+    sub: prevTask ? prevTask.sub : "",
+    content: prevTask ? prevTask.content : "",
+    period: prevTask ? prevTask.period : "",
+    work: "", status: "未着手", due: "", note: "", prio: "", week: false, done: false
+  };
+  // tasks 配列へ挿入（beforeId の直前／null ならセクションの末尾）
+  if (beforeId != null){
+    const idx = tasks.findIndex(t=>t.id===beforeId);
+    if (idx>=0) tasks.splice(idx, 0, newTask); else tasks.push(newTask);
+  } else {
+    let lastIdx = -1;
+    tasks.forEach((t,i)=>{ if (t.category===category) lastIdx = i; });
+    if (lastIdx>=0) tasks.splice(lastIdx+1, 0, newTask); else tasks.push(newTask);
+  }
+  save();
+  renderBoard();
+  // 追加した行の「作業」セルにフォーカスして即入力できるように
+  const cell = document.querySelector(`#boardView tr[data-id="${newTask.id}"] td[data-field="work"]`);
+  if (cell){
+    cell.focus();
+    const range = document.createRange();
+    range.selectNodeContents(cell);
+    range.collapse(false);
+    const sel = window.getSelection();
+    sel.removeAllRanges(); sel.addRange(range);
+    cell.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
+}
+
+// ---- 今週TODO をボードから自動更新 ----
+// 「期限・作業日」文字列から今日までの残り日数を返す。未定/解析不可なら null。
+function parseDueDays(dueStr){
+  if (!dueStr) return null;
+  if (/未定|随時|要確認/.test(dueStr)) return null;
+  let month = null, day = null;
+  const md = dueStr.match(/(\d{1,2})\s*\/\s*(\d{1,2})/); // 例: 7/30, 9/1
+  if (md){ month = +md[1]; day = +md[2]; }
+  else {
+    const jp = dueStr.match(/(\d{1,2})\s*月\s*(?:(\d{1,2})\s*日|(末|上旬|中旬|下旬|初旬))?/); // 例: 9月末, 8月18日
+    if (jp){
+      month = +jp[1];
+      if (jp[2]) day = +jp[2];
+      else if (jp[3]){ day = (jp[3]==="末"||jp[3]==="下旬") ? 28 : (jp[3]==="中旬" ? 15 : 5); }
+      else day = 15; // 「9月」だけ → 月中旬とみなす
+    }
+  }
+  if (month==null || day==null) return null;
+
+  const now = new Date();
+  now.setHours(0,0,0,0);
+  let year = now.getFullYear();
+  let target = new Date(year, month-1, day);
+  target.setHours(0,0,0,0);
+  // 過去日になりすぎる場合は翌年扱い（年跨ぎ対応）
+  const diffRaw = Math.round((target - now) / 86400000);
+  if (diffRaw < -60){ target = new Date(year+1, month-1, day); }
+  return Math.round((target - now) / 86400000);
+}
+
+// 残り日数から優先度（日数ベース）: 🔴=3日以内 / 🟡=10日以内 / 🟢=それ以降・未定
+function priorityFromDays(days){
+  if (days == null) return "🟢";      // 未定・要確認
+  if (days <= 3) return "🔴";          // 期限切れ含む
+  if (days <= 10) return "🟡";
+  return "🟢";
+}
+
+// ボードの未完了作業から今週TODOを全置換で再生成する。
+// 対象: 未完了 かつ（10日以内が期日 or 期日未定）。遠い将来の日付は除外。
+function refreshTodoFromBoard(){
+  const targets = tasks.filter(t=>{
+    if (t.done) return false;
+    const work = (t.work||"").replace(/^・/, "").trim();
+    if (!work || work === "-") return false; // 作業が空・プレースホルダ(-)の行は対象外
+    const days = parseDueDays(t.due);
+    return (days == null) || (days <= 10);    // 未定 or 10日以内
+  });
+  if (!confirm(`ボードの内容から今週TODOを再生成します。\n対象 ${targets.length} 件。現在の今週TODOの手動調整（対象指定・優先度）は上書きされます。よろしいですか？`)){
+    return;
+  }
+  const targetIds = new Set(targets.map(t=>t.id));
+  tasks.forEach(t=>{
+    if (targetIds.has(t.id)){
+      t.week = true;
+      t.prio = priorityFromDays(parseDueDays(t.due));
+    } else {
+      t.week = false;
+    }
+  });
+  save();
+  renderTodo();
+  toast(`今週TODOを更新しました（${targets.length}件）`);
+}
+
+// ---- レンダリング：今週TODO ----
+function renderTodo(){
+  const host = document.getElementById("todoView");
+  let items = tasks.filter(t=>t.week);
+  if (!items.length){ host.innerHTML = `<div class="empty">今週対象の作業がありません。<br>ボードの各行の🗓ボタンで追加できます。</div>`; return; }
+
+  const order = {"🔴":0,"🟡":1,"🟢":2,"":3};
+  const groups = [
+    {key:"🔴", label:"🔴 高（今週前半が期日）"},
+    {key:"🟡", label:"🟡 中（今週中〜来週前半）"},
+    {key:"🟢", label:"🟢 低（期日未定・要確認）"},
+    {key:"",   label:"優先度なし"},
+  ];
+  items.sort((a,b)=>(order[a.prio]-order[b.prio]));
+  let html = "";
+  for (const g of groups){
+    const gi = items.filter(t=>t.prio===g.key);
+    if (!gi.length) continue;
+    const pkey = g.key || "none"; // 空優先度は "none" をキーに
+    const collapsed = collapsedPrios.has(pkey);
+    html += `<div class="todo-group${collapsed?" collapsed":""}" data-prio="${pkey}">
+      <h3><button class="prio-toggle" title="折り畳み/展開">${collapsed?"▶":"▼"}</button>${g.label} <span>(${gi.length})</span></h3>`;
+    if (!collapsed){
+    for (const t of gi){
+      const note = (t.note||"").trim();
+      const isSel = selectedIds.has(t.id);
+      html += `<div class="todo-item ${t.done?'done':''}${isSel?' todo-selected':''}" data-id="${t.id}">
+        <span class="todo-drag-handle" title="ドラッグで並び替え／Shift・Ctrlクリックで複数選択">⠿</span>
+        <input type="checkbox" class="todo-check" ${t.done?"checked":""}>
+        <select class="prio-select" title="優先度">
+          <option value="" ${t.prio===""?"selected":""}>⚪</option>
+          <option value="🔴" ${t.prio==="🔴"?"selected":""}>🔴</option>
+          <option value="🟡" ${t.prio==="🟡"?"selected":""}>🟡</option>
+          <option value="🟢" ${t.prio==="🟢"?"selected":""}>🟢</option>
+        </select>
+        <div class="todo-main">
+          <div class="todo-title-row">
+            <div class="todo-content">${esc(t.work||t.content)}</div>
+            ${note ? `<div class="todo-note">📝 ${esc(note)}</div>` : ""}
+          </div>
+          <div class="todo-sub"><span class="todo-cat-badge">${esc(t.category)}</span> ${esc(t.sub)}${t.content&&t.content!==t.work?" / "+esc(t.content):""}${t.due?" ・ 期限 "+esc(t.due):""}</div>
+        </div>
+        <span class="badge" style="${statusStyle(t.status)}">${esc(t.status)}</span>
+        <button class="del-btn week-remove" title="今週から外す">🗓✕</button>
+      </div>`;
+    }
+    }
+    html += `</div>`;
+  }
+  host.innerHTML = html;
+
+  // 優先度グループの折り畳み/展開
+  host.querySelectorAll(".prio-toggle").forEach(b=>{
+    b.addEventListener("click", ()=>{
+      const pkey = b.closest(".todo-group").dataset.prio;
+      if (collapsedPrios.has(pkey)) collapsedPrios.delete(pkey); else collapsedPrios.add(pkey);
+      save(); renderTodo();
+    });
+  });
+  host.querySelectorAll(".todo-check").forEach(chk=>{
+    chk.addEventListener("change", ()=>{
+      const t = getTask(+chk.closest(".todo-item").dataset.id);
+      t.done = chk.checked; save(); renderTodo();
+    });
+  });
+  host.querySelectorAll(".prio-select").forEach(sel=>{
+    sel.addEventListener("change", ()=>{
+      const t = getTask(+sel.closest(".todo-item").dataset.id);
+      t.prio = sel.value; save(); renderTodo();
+    });
+  });
+  host.querySelectorAll(".week-remove").forEach(b=>{
+    b.addEventListener("click", ()=>{
+      const t = getTask(+b.closest(".todo-item").dataset.id);
+      t.week = false; save(); renderTodo(); toast("今週TODOから外しました");
+    });
+  });
+  bindTodoSelectionAndDnD(host);
+  updateSelectionBar();
+}
+
+// 今週TODOの選択（Shift/Ctrlクリック）とドラッグ並び替え
+function bindTodoSelectionAndDnD(host){
+  // 表示順のタスクid一覧（範囲選択に使用）
+  const orderedIds = () => [...host.querySelectorAll(".todo-item")].map(el=>+el.dataset.id);
+
+  // ハンドルのクリックで選択（修飾キー時）／ドラッグ開始
+  host.querySelectorAll(".todo-drag-handle").forEach(h=>{
+    const item = h.closest(".todo-item");
+    h.addEventListener("click", e=>{
+      if (!e.shiftKey && !e.ctrlKey && !e.metaKey) return; // 修飾なしはドラッグ用途
+      e.preventDefault();
+      const id = +item.dataset.id;
+      const ids = orderedIds();
+      if (e.shiftKey && lastSelId != null){
+        const a = ids.indexOf(lastSelId), b = ids.indexOf(id);
+        if (a>=0 && b>=0){ const [lo,hi]=a<b?[a,b]:[b,a]; for (let i=lo;i<=hi;i++) selectedIds.add(ids[i]); }
+      } else {
+        if (selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id);
+      }
+      lastSelId = id;
+      renderTodo();
+    });
+    h.addEventListener("mousedown", ()=>{ item.setAttribute("draggable","true"); });
+    h.addEventListener("mouseup", ()=>{ item.removeAttribute("draggable"); });
+  });
+
+  let dragIds = null;
+  host.querySelectorAll(".todo-item").forEach(item=>{
+    item.addEventListener("dragstart", e=>{
+      const id = +item.dataset.id;
+      dragIds = (selectedIds.has(id) && selectedIds.size>1) ? orderedSelectedIds() : [id];
+      dragIds.forEach(x=>{ const el=host.querySelector(`.todo-item[data-id="${x}"]`); if(el) el.classList.add("todo-dragging"); });
+      e.dataTransfer.effectAllowed = "move";
+      try { e.dataTransfer.setData("text/plain", dragIds.join(",")); } catch(_){}
+    });
+    item.addEventListener("dragend", ()=>{
+      item.removeAttribute("draggable");
+      host.querySelectorAll(".todo-dragging,.todo-drop-before,.todo-drop-after")
+        .forEach(el=>el.classList.remove("todo-dragging","todo-drop-before","todo-drop-after"));
+    });
+    item.addEventListener("dragover", e=>{
+      if (!dragIds || dragIds.includes(+item.dataset.id)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      const rect = item.getBoundingClientRect();
+      const after = (e.clientY - rect.top) > rect.height/2;
+      item.classList.toggle("todo-drop-after", after);
+      item.classList.toggle("todo-drop-before", !after);
+    });
+    item.addEventListener("dragleave", ()=>{ item.classList.remove("todo-drop-before","todo-drop-after"); });
+    item.addEventListener("drop", e=>{
+      e.preventDefault();
+      const targetId = +item.dataset.id;
+      if (!dragIds || dragIds.includes(targetId)) return;
+      const rect = item.getBoundingClientRect();
+      const after = (e.clientY - rect.top) > rect.height/2;
+      moveTodoTasks(dragIds, targetId, after);
+      dragIds = null;
+    });
+  });
+
+  // グループ見出しへのドロップで、そのグループの優先度に変更（末尾へ）
+  host.querySelectorAll(".todo-group").forEach(g=>{
+    const h3 = g.querySelector("h3");
+    h3.addEventListener("dragover", e=>{ if(dragIds){ e.preventDefault(); e.dataTransfer.dropEffect="move"; h3.classList.add("todo-drop-after"); } });
+    h3.addEventListener("dragleave", ()=>{ h3.classList.remove("todo-drop-after"); });
+    h3.addEventListener("drop", e=>{
+      e.preventDefault();
+      if (!dragIds) return;
+      const pkey = g.dataset.prio;
+      moveTodoToGroup(dragIds, pkey==="none" ? "" : pkey);
+      dragIds = null;
+    });
+  });
+}
+
+// 今週TODO内でドラッグ移動。移動先の優先度に合わせ、tasks配列上で並べ替える。
+function moveTodoTasks(dragIds, targetId, after){
+  const target = getTask(targetId);
+  if (!target) return;
+  const movedTasks = tasks.filter(t=>dragIds.includes(t.id));
+  if (!movedTasks.length) return;
+  const changedPrio = movedTasks.some(t=>t.prio !== target.prio);
+  tasks = tasks.filter(t=>!dragIds.includes(t.id));
+  movedTasks.forEach(t=>{ t.prio = target.prio; }); // 移動先グループの優先度に揃える
+  let to = tasks.findIndex(t=>t.id===targetId);
+  if (to<0){ tasks.push(...movedTasks); }
+  else { if (after) to += 1; tasks.splice(to, 0, ...movedTasks); }
+  save(); renderTodo();
+  if (changedPrio) toast(`${movedTasks.length}件の優先度を変更しました`);
+  else if (movedTasks.length>1) toast(`${movedTasks.length}件を移動しました`);
+  clearSelection();
+}
+
+// グループ見出しへドロップ：指定優先度の末尾へ移動
+function moveTodoToGroup(dragIds, prio){
+  const movedTasks = tasks.filter(t=>dragIds.includes(t.id));
+  if (!movedTasks.length) return;
+  tasks = tasks.filter(t=>!dragIds.includes(t.id));
+  movedTasks.forEach(t=>{ t.prio = prio; });
+  // 同優先度の最後の要素の直後へ（週内のみ対象）
+  let lastIdx = -1;
+  tasks.forEach((t,i)=>{ if (t.week && t.prio===prio) lastIdx = i; });
+  if (lastIdx>=0) tasks.splice(lastIdx+1, 0, ...movedTasks); else tasks.push(...movedTasks);
+  save(); renderTodo();
+  toast(`${movedTasks.length}件を移動しました`);
+  clearSelection();
+}
+
+// 今週TODOの完了タスクを一括削除
+function deleteDoneTodoTasks(){
+  const doneCount = tasks.filter(t=>t.week && t.done).length;
+  if (doneCount===0){ toast("完了した今週TODOはありません"); return; }
+  if (!confirm(`今週TODOの完了した ${doneCount} 件を削除します。よろしいですか？`)) return;
+  tasks = tasks.filter(t=>!(t.week && t.done));
+  save(); renderTodo();
+  toast(`完了した ${doneCount} 件を削除しました`);
+}
+
+function getTask(id){ return tasks.find(t=>t.id===id); }
+
+// ---- ビュー切替 ----
+function switchView(v){
+  currentView = v;
+  selectedIds.clear(); lastSelId = null; // ビューをまたいだ選択は解除
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active", t.dataset.view===v));
+  document.getElementById("boardView").style.display = v==="board"?"":"none";
+  document.getElementById("todoView").style.display = v==="todo"?"":"none";
+  document.getElementById("boardFilters").style.display = v==="board"?"":"none";
+  document.getElementById("todoFilters").style.display = v==="todo"?"":"none";
+  // 作業追加・セクション追加のボタン群を、表示中ビューのフィルタ行右端へ移動
+  const anchor = document.querySelector(`.action-anchor[data-view="${v}"]`);
+  const tools = document.getElementById("actionTools");
+  if (anchor && tools) anchor.appendChild(tools);
+  // セクション追加（＋§）は案件状況ボードのみ
+  document.getElementById("addCatBtn").style.display = v==="board" ? "" : "none";
+  if (v==="board") renderBoard(); else renderTodo();
+  updateSelectionBar();
+}
+
+// ---- モーダル ----
+function openModal(id){
+  editingId = id;
+  const t = id ? getTask(id) : null;
+  document.getElementById("modalTitle").textContent = id ? "作業を編集" : "作業を追加";
+  const defaultCat = insertContext ? insertContext.category : (document.getElementById("filterCat").value || "生成AI");
+  document.getElementById("f_cat").value = t? t.category : defaultCat;
+  document.getElementById("f_sub").value = t? t.sub : "";
+  document.getElementById("f_content").value = t? t.content : "";
+  document.getElementById("f_work").value = t? t.work : "";
+  document.getElementById("f_period").value = t? t.period : "";
+  document.getElementById("f_due").value = t? t.due : "";
+  document.getElementById("f_status").value = t? t.status : "未着手";
+  document.getElementById("f_prio").value = t? t.prio : "";
+  document.getElementById("f_note").value = t? t.note : "";
+  document.getElementById("f_week").checked = t? t.week : false;
+  document.getElementById("overlay").classList.add("open");
+}
+function closeModal(){ document.getElementById("overlay").classList.remove("open"); editingId=null; insertContext=null; }
+function saveModal(){
+  let work = document.getElementById("f_work").value.trim();
+  if (work && !work.startsWith("・")) work = "・"+work;
+  const data = {
+    category: document.getElementById("f_cat").value,
+    sub: document.getElementById("f_sub").value.trim(),
+    content: document.getElementById("f_content").value.trim(),
+    work,
+    period: document.getElementById("f_period").value.trim(),
+    due: document.getElementById("f_due").value.trim(),
+    status: document.getElementById("f_status").value,
+    prio: document.getElementById("f_prio").value,
+    note: document.getElementById("f_note").value.trim(),
+    week: document.getElementById("f_week").checked,
+  };
+  if (editingId){ Object.assign(getTask(editingId), data); }
+  else {
+    const newTask = { id: ++_id, done:false, ...data };
+    if (insertContext && insertContext.beforeId != null){
+      const idx = tasks.findIndex(t=>t.id===insertContext.beforeId);
+      if (idx>=0) tasks.splice(idx, 0, newTask); else tasks.push(newTask);
+    } else if (insertContext){
+      // 末尾挿入：同じセクションの最後の要素の直後に入れる
+      let lastIdx = -1;
+      tasks.forEach((t,i)=>{ if (t.category===insertContext.category) lastIdx = i; });
+      if (lastIdx>=0) tasks.splice(lastIdx+1, 0, newTask); else tasks.push(newTask);
+    } else {
+      tasks.push(newTask);
+    }
+  }
+  save(); closeModal();
+  currentView==="board" ? renderBoard() : renderTodo();
+  toast("保存しました");
+}
+
+// ---- Markdown 書き出し ----
+// 表示中のビューに応じて、案件状況 or 今週TODO を書き出す。
+function exportMarkdown(){
+  const date = document.getElementById("updateDate").textContent || "yyyymmdd";
+  const name = document.getElementById("exportName").value.trim() || "名前未設定";
+  if (currentView === "todo"){
+    downloadText(`${date}_今週TODO_${name}.md`, `${buildTodoMd(date)}\n`);
+    toast("今週TODOを書き出しました");
+  } else {
+    downloadText(`${date}_案件状況_${name}.md`, `${buildBoardMd()}\n`);
+    toast("案件状況を書き出しました");
+  }
+}
+function buildBoardMd(){
+  let out = "";
+  for (const c of catOrder){
+    const rows = tasks.filter(t=>t.category===c);
+    if (!rows.length) continue;
+    out += `## ${c}\n\n`;
+    out += `| 分類 | 内容 | 期間 | 作業 | 状況 | 期限・作業日 | 備考 |\n`;
+    out += `|--------|------|------|------|------|------------|------|\n`;
+    let prevSub="", prevContent="";
+    for (const t of rows){
+      const sub = t.sub===prevSub ? "" : t.sub;
+      // 内容・期間は「分類も内容も同じ」場合に空欄化
+      const sameGroup = (t.sub===prevSub && t.content===prevContent);
+      const content = sameGroup ? "" : t.content;
+      const period  = sameGroup ? "" : t.period;
+      out += `| ${cell(sub)} | ${cell(content)} | ${cell(period)} | ${cell(t.work)} | ${cell(t.status)} | ${cell(t.due)} | ${cell(t.note)} |\n`;
+      prevSub = t.sub; prevContent = t.content;
+    }
+    out += "\n";
+  }
+  return out.trim();
+}
+function buildTodoMd(date){
+  const week = tasks.filter(t=>t.week);
+  const order = {"🔴":0,"🟡":1,"🟢":2,"":3};
+  week.sort((a,b)=>order[a.prio]-order[b.prio]);
+  let out = `# 今週のTODOリスト（更新: ${date}）\n\n`;
+  out += `| 完了 | 優先度 | セクション | 分類 | 内容 | 状況 |\n`;
+  out += `|------|--------|--------|--------|------|------|\n`;
+  for (const t of week){
+    out += `| ${t.done?"[x]":"[ ]"} | ${t.prio||""} | ${cell(t.category)} | ${cell(t.sub)} | ${cell(t.work||t.content)} | ${cell(t.status)} |\n`;
+  }
+  return out;
+}
+function cell(s){ return (s||"").replace(/\|/g,"\\|").replace(/\n/g,"<br>"); }
+function downloadText(name, text){
+  const blob = new Blob([text], {type:"text/markdown;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ---- 初期化 ----
+function initSelects(){
+  const stSel = document.getElementById("filterStatus");
+  const fStSel = document.getElementById("f_status");
+  STATUSES.forEach(s=>{
+    stSel.insertAdjacentHTML("beforeend", `<option>${s}</option>`);
+    fStSel.insertAdjacentHTML("beforeend", `<option>${s}</option>`);
+  });
+  refreshCatSelects();
+}
+
+// セクションセレクト（フィルタ・モーダル）を catOrder から再構築する
+function refreshCatSelects(){
+  const catSel = document.getElementById("filterCat");
+  const fCatSel = document.getElementById("f_cat");
+  const prevFilter = catSel.value;
+  const prevForm = fCatSel.value;
+  catSel.innerHTML = `<option value="">すべて</option>` + catOrder.map(c=>`<option>${esc(c)}</option>`).join("");
+  fCatSel.innerHTML = catOrder.map(c=>`<option>${esc(c)}</option>`).join("");
+  // 可能なら選択状態を維持
+  if (catOrder.includes(prevFilter)) catSel.value = prevFilter; else catSel.value = "";
+  if (catOrder.includes(prevForm)) fCatSel.value = prevForm;
+}
+
+function bindGlobal(){
+  document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click", ()=>switchView(t.dataset.view)));
+  document.getElementById("filterCat").addEventListener("change", renderBoard);
+  document.getElementById("filterStatus").addEventListener("change", renderBoard);
+  document.getElementById("refreshTodoBtn").addEventListener("click", refreshTodoFromBoard);
+  document.getElementById("collapsePrioAllBtn").addEventListener("click", ()=>{
+    ["🔴","🟡","🟢","none"].forEach(k=>collapsedPrios.add(k)); save(); renderTodo();
+  });
+  document.getElementById("expandPrioAllBtn").addEventListener("click", ()=>{
+    collapsedPrios.clear(); save(); renderTodo();
+  });
+  document.getElementById("addBtn").addEventListener("click", ()=>openModal(null));
+  document.getElementById("addCatBtn").addEventListener("click", ()=>addSection());
+  document.getElementById("clearSelBtn").addEventListener("click", clearSelection);
+  document.getElementById("todoClearSelBtn").addEventListener("click", clearSelection);
+  document.getElementById("resetSortBtn").addEventListener("click", resetAllSort);
+  document.getElementById("deleteDoneBtn").addEventListener("click", deleteDoneTasks);
+  document.getElementById("deleteDoneTodoBtn").addEventListener("click", deleteDoneTodoTasks);
+  document.getElementById("collapseAllBtn").addEventListener("click", ()=>{
+    catOrder.forEach(c=>collapsedCats.add(c)); save(); renderBoard();
+  });
+  document.getElementById("expandAllBtn").addEventListener("click", ()=>{
+    collapsedCats.clear(); save(); renderBoard();
+  });
+  document.getElementById("cancelBtn").addEventListener("click", closeModal);
+  document.getElementById("saveBtn").addEventListener("click", saveModal);
+  document.getElementById("exportBtn").addEventListener("click", exportMarkdown);
+  document.getElementById("exportName").addEventListener("change", save);
+  document.getElementById("overlay").addEventListener("click", e=>{ if(e.target.id==="overlay") closeModal(); });
+  document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeModal(); });
+}
+
+// boot
+initSelects();
+bindGlobal();
+load();
+switchView("board");
+</script>
+</body>
+</html>
