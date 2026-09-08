@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>案件状況 / 今週TODO 管理</title>
+<title>MY-TODO</title>
 <style>
   :root {
     --bg: #eef1f6;
@@ -112,8 +112,6 @@
   td.editable { cursor: text; min-width: 60px; white-space: pre-wrap; word-break: break-word; }
   td.editable:focus { outline: 2px solid var(--accent-soft); background: #fff; }
   td.done-cell { text-align: center; }
-  .row-done td { opacity: .5; }
-  .row-done td.content, .row-done td.work { text-decoration: line-through; }
 
   /* 分類＋内容のグループ表示 */
   tbody tr.group-odd td { background: #e3f2fb; }         /* 交互の帯（奇数グループ）：薄い水色。先頭グループは白 */
@@ -126,6 +124,7 @@
   .badge { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 12px; font-weight: 600; white-space: nowrap; }
   .status-select { border: none; background: transparent; font-weight: 600; font-size: 12px; padding: 3px 6px; border-radius: 20px; cursor: pointer; }
   .prio-select { border: none; background: transparent; font-size: 16px; cursor: pointer; text-align: center; }
+  .prio-select.off { opacity: .4; }
 
   .col-narrow { width: 42px; }
   .del-btn { border: none; background: transparent; color: #c2ccd8; cursor: pointer; font-size: 16px; line-height: 1; padding: 2px 6px; border-radius: 5px; }
@@ -196,12 +195,22 @@
   .todo-group h3.todo-drop-after { box-shadow: inset 0 -3px 0 -1px var(--accent); border-radius: 4px; }
   .todo-check { width: 18px; height: 18px; cursor: pointer; flex-shrink: 0; margin-top: 1px; }
   .todo-prio { font-size: 17px; width: 22px; text-align: center; flex-shrink: 0; }
-  .todo-main { flex: 1; min-width: 0; }
+  .todo-main { flex: 0 1 340px; min-width: 0; }
   .todo-content { font-weight: 600; }
   .todo-sub { font-size: 12px; color: var(--muted); margin-top: 1px; }
   .todo-title-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-  .todo-note { font-size: 12px; color: #7a6a3a; background: #fdf6e3; border-left: 3px solid #e6d08a; padding: 2px 8px; border-radius: 4px; white-space: pre-wrap; word-break: break-word; }
+  .todo-note { font-size: 12px; color: #7a6a3a; background: #fdf6e3; border-left: 3px solid #e6d08a; padding: 2px 8px; border-radius: 4px; white-space: pre-wrap; word-break: break-word; display: flex; align-items: baseline; gap: 4px; flex: 1 1 auto; min-width: 200px; align-self: flex-start; }
   .todo-cat-badge { font-size: 11px; padding: 1px 8px; border-radius: 12px; background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+  /* 今週TODO のインライン編集セル（作業名・期限・備考） */
+  .todo-edit { cursor: text; border-radius: 4px; white-space: pre-wrap; word-break: break-word; }
+  .todo-edit:hover { background: rgba(47,111,235,.06); }
+  .todo-edit:focus { outline: 2px solid var(--accent-soft); background: #fff; }
+  .todo-due { padding: 0 3px; min-width: 24px; display: inline-block; }
+  .todo-note-edit { min-width: 20px; }
+  .todo-content.todo-edit:empty::before { content: "作業名を入力"; color: var(--muted); font-weight: 400; }
+  .todo-due.todo-edit:empty::before { content: "日付"; color: var(--muted); }
+  .todo-note-edit:empty::before { content: "備考を追加"; color: #b3a875; }
+  .todo-status { flex-shrink: 0; align-self: flex-start; margin-left: auto; }
   .todo-group h3 .prio-toggle { border: none; background: transparent; cursor: pointer; font-size: 11px; color: var(--muted); padding: 2px 4px; border-radius: 4px; line-height: 1; }
   .todo-group h3 .prio-toggle:hover { color: var(--accent); background: var(--accent-soft); }
 
@@ -227,9 +236,9 @@
 <body>
 <div class="topbar">
 <header class="app">
-  <h1>📋 案件状況 / TODO 管理</h1>
+  <h1>📋 MY-TODO</h1>
   <div class="tabs">
-    <button class="tab active" data-view="board">案件状況ボード</button>
+    <button class="tab active" data-view="board">TODOリスト</button>
     <button class="tab" data-view="todo">今週TODO</button>
   </div>
   <div class="spacer"></div>
@@ -237,12 +246,16 @@
     <span class="meta">📅 <span id="updateDate" title="ファイル名・見出しに使う更新日（実行日の週の月曜日）"></span></span>
     <span class="meta">👤 <input type="text" id="exportName" style="width:80px" placeholder="名前を入力" title="ファイル名に使う名前"></span>
     <button class="btn" id="exportBtn" title="Markdownで書き出し">⬇MD</button>
+    <span style="width:1px; height:22px; background:var(--border); margin:0 2px;"></span>
+    <button class="btn" id="backupBtn" title="全データをJSONファイルに書き出し（別ブラウザ・別PCへの移行用バックアップ）">💾 バックアップ</button>
+    <button class="btn" id="restoreBtn" title="JSONファイルからデータを復元（現在のデータは上書きされます）">📂 復元</button>
+    <input type="file" id="restoreFile" accept="application/json,.json" style="display:none">
   </div>
 </header>
 
 <!-- 各ビューのフィルタ行右端に移動して使うアクションボタン群 -->
 <span id="actionTools" style="display:inline-flex; gap:8px; align-items:center;">
-  <button class="btn icon" id="addCatBtn" title="セクションを追加">＋§</button>
+  <button class="btn icon" id="addCatBtn" title="セクションを追加">＋---</button>
   <button class="btn icon primary" id="addBtn" title="作業を追加">＋</button>
 </span>
 
@@ -251,9 +264,9 @@
     <select id="filterCat"><option value="">すべて</option></select>
     <label>状況</label>
     <select id="filterStatus"><option value="">すべて</option></select>
-    <button class="btn icon danger" id="deleteDoneBtn" title="完了したタスクを一括削除" style="margin-left:8px">🗑✓</button>
     <button class="btn" id="collapseAllBtn" title="すべて折り畳む">▶ 折り畳み</button>
     <button class="btn" id="expandAllBtn" title="すべて開く">▼ 開く</button>
+    <button class="btn icon danger" id="deleteDoneBoardBtn" title="完了したタスクを一括削除">🗑✓</button>
     <button class="btn icon" id="resetSortBtn" title="並び替えを全解除" disabled>⇅</button>
     <span id="selectionBar" style="display:none; margin-left:8px; font-size:12px; color:var(--accent); font-weight:600;">
       <span id="selCount">0</span> 件選択中
@@ -264,15 +277,15 @@
   </div>
   <div class="filters" id="todoFilters" style="display:none">
     <button class="btn primary" id="refreshTodoBtn" title="ボードの未完了作業から今週TODOを再生成">🔄 更新</button>
-    <button class="btn icon danger" id="deleteDoneTodoBtn" title="完了したタスクを一括削除" style="margin-left:8px">🗑✓</button>
     <button class="btn" id="collapsePrioAllBtn" title="すべて折り畳む">▶ 折り畳み</button>
     <button class="btn" id="expandPrioAllBtn" title="すべて開く">▼ 開く</button>
+    <button class="btn icon danger" id="deleteDoneTodoBtn" title="完了したタスクを一括削除">🗑✓</button>
     <span id="todoSelectionBar" style="display:none; margin-left:8px; font-size:12px; color:var(--accent); font-weight:600;">
       <span id="todoSelCount">0</span> 件選択中
       <button class="btn icon" id="todoClearSelBtn" title="選択を解除" style="margin-left:6px;">✕</button>
     </span>
     <span class="action-anchor" data-view="todo"></span>
-    <span class="hint" style="flex-basis:100%;">⠿ を Shift・Ctrlクリックで複数選択・⠿ をドラッグで並び替え（別の優先度へ移すと優先度も変更）・優先度見出しの ▼ で折り畳み・🗓で個別切替</span>
+    <span class="hint" style="flex-basis:100%;">⠿ を Shift・Ctrlクリックで複数選択・⠿ をドラッグで並び替え（別の優先度へ移すと優先度も変更）・優先度見出しの ▼ で折り畳み・🚩で個別切替</span>
   </div>
 </div><!-- /.topbar -->
 
@@ -316,8 +329,8 @@
 "use strict";
 
 // ---- 定数 ----
-// セクションの初期リスト。追加・削除・並び替え後の実体は catOrder が保持する。
-const CATEGORIES = ["インフラ", "生成AI", "開発支援", "業務外", "その他"];
+// セクションの初期リスト（サンプル）。追加・削除・並び替え後の実体は catOrder が保持する。
+const CATEGORIES = ["サンプルセクションA", "サンプルセクションB"];
 const STATUSES = ["未着手","作業中","待ち","完了","未定"];
 const STATUS_COLORS = {
   "未着手":     ["#ffe0e0","#b23636"],
@@ -328,10 +341,22 @@ const STATUS_COLORS = {
 };
 const STORAGE_KEY = "um_todo_app_v1";
 
-// ---- 初期データ ----
-// 公開用のため空。初回起動時はタスクなしの空のセクション（CATEGORIES）が表示される。
+// ---- 初期データ（サンプル） ----
+// 初めて使う人向けのサンプル。実データではないので、各行の 🗑 やセクションの 🗑 で削除して使い始められる。
 let _id = 0;
-const SEED = [];
+const SEED = [
+  // サンプルセクションA：1つの内容に複数の作業がある例（分類・内容・期間はグループ先頭行のみ表示）
+  cat("サンプルセクションA","A社","要件定義","4～5月","・ヒアリング実施","完了","4/10(金)","サンプル：完了したタスク",""),
+  cat("サンプルセクションA","A社","要件定義","","・要件定義書の作成","作業中","5/15(木)","サンプル：作業中のタスク","🟡",true),
+  cat("サンプルセクションA","A社","要件定義","","・レビュー依頼","待ち","5/20(火)","サンプル：レビュー待ち","🟡",true),
+  cat("サンプルセクションA","B社","サーバ構築","5～6月","・環境準備","未着手","6/1(月)","サンプル：まだ着手していないタスク","🟢"),
+  // サンプルセクションB：単発タスクの例
+  cat("サンプルセクションB","社内","勉強会","随時","・資料作成","作業中","","サンプル：期限のないタスク","🔴",true),
+  cat("サンプルセクションB","社内","勉強会","","・開催","未定","","サンプル：日程未定のタスク",""),
+];
+function cat(category, sub, content, period, work, status, due, note, prio, week){
+  return { id: ++_id, category, sub, content, period, work, status, due, note: note||"", prio: prio||"", week: !!week };
+}
 
 // ---- 状態 ----
 let tasks = [];
@@ -342,8 +367,23 @@ let sortStates = {}; // セクション名 → { field: "sub"|"content", dir: 1|
 let insertContext = null; // { category, beforeId } タスク挿入位置
 let collapsedCats = new Set(); // 折り畳み中のセクション名
 let collapsedPrios = new Set(); // 折り畳み中の優先度キー（今週TODO）
+let todoOrder = []; // 今週TODOの表示順（タスクidの配列）。ボードの tasks 配列とは独立。
 let selectedIds = new Set(); // まとめて移動用に選択中のタスクid（永続化しない）
 let lastSelId = null; // Shift範囲選択の起点
+let newCatName = null; // 追加直後で名称未確定のセクション名（その場入力にフォーカスするため）
+
+// todoOrder を tasks の現状に整合させる。
+// week=true のタスクだけを保持し、todoOrder に無い週内タスクは末尾へ追加、消えたidは除去する。
+function normalizeTodoOrder(){
+  const weekIds = new Set(tasks.filter(t=>t.week).map(t=>t.id));
+  const seen = new Set();
+  todoOrder = todoOrder.filter(id=>{
+    if (!weekIds.has(id) || seen.has(id)) return false;
+    seen.add(id); return true;
+  });
+  // 新たに週内になったタスク（tasks の並び順）を末尾へ補完
+  tasks.forEach(t=>{ if (t.week && !seen.has(t.id)){ todoOrder.push(t.id); seen.add(t.id); } });
+}
 
 // catOrder を整える（重複除去。タスクに存在する未知の分類は末尾に補完）
 function normalizeCatOrder(){
@@ -362,7 +402,9 @@ function load(){
       catOrder = Array.isArray(s.catOrder) ? s.catOrder : CATEGORIES.slice();
       collapsedCats = new Set(Array.isArray(s.collapsedCats) ? s.collapsedCats : []);
       collapsedPrios = new Set(Array.isArray(s.collapsedPrios) ? s.collapsedPrios : []);
+      todoOrder = Array.isArray(s.todoOrder) ? s.todoOrder : [];
       normalizeCatOrder();
+      normalizeTodoOrder();
       _id = tasks.reduce((m,t)=>Math.max(m,t.id),0);
       document.getElementById("updateDate").textContent = mondayStr();
       document.getElementById("exportName").value = s.exportName || "";
@@ -371,12 +413,14 @@ function load(){
   }
   tasks = SEED.map(t=>({...t}));
   catOrder = CATEGORIES.slice();
+  todoOrder = [];
+  normalizeTodoOrder();
   document.getElementById("updateDate").textContent = mondayStr();
   document.getElementById("exportName").value = "";
 }
 function save(){
   localStorage.setItem(STORAGE_KEY, JSON.stringify({
-    tasks, catOrder, collapsedCats: [...collapsedCats], collapsedPrios: [...collapsedPrios], exportName: document.getElementById("exportName").value
+    tasks, catOrder, todoOrder, collapsedCats: [...collapsedCats], collapsedPrios: [...collapsedPrios], exportName: document.getElementById("exportName").value
   }));
 }
 // 実行日の週の月曜日を yyyymmdd 形式で返す（更新日として使用）
@@ -437,8 +481,8 @@ function renderBoard(){
     html += `<section class="cat${collapsed?" collapsed":""}" data-cat="${esc(c)}"><h2><button class="sec-toggle" title="折り畳み/展開">${collapsed?"▶":"▼"}</button>${secHandle}<span class="cat-name" data-field="catname" title="クリックで名称変更" contenteditable>${esc(c)}</span> <span class="count">${rows.length}件</span><button class="sec-del" title="このセクションを削除">🗑</button></h2>`;
     if (!collapsed){
     html += `<div class="card"><table><thead><tr>
-      <th class="col-drag"></th><th class="col-narrow">完了</th>${sortableTh("分類","sub",st)}<th>内容</th>${sortableTh("期間","period",st)}<th>作業</th>
-      ${sortableTh("状況","status",st)}${sortableTh("期限・作業日","due",st)}<th>備考</th><th class="col-narrow">今週</th><th class="col-narrow"></th>
+      <th class="col-drag"></th>${sortableTh("分類","sub",st)}<th>内容</th>${sortableTh("期間","period",st)}<th>作業</th>
+      ${sortableTh("状況","status",st)}${sortableTh("期限・作業日","due",st)}<th>備考</th>${sortableTh("優先度","prio",st)}<th class="col-narrow">今週TODO</th><th class="col-narrow"></th>
     </tr></thead><tbody>`;
     let prevKey = null, groupIdx = -1;
     for (const t of rows){
@@ -460,6 +504,7 @@ function renderBoard(){
   html += sectionInsertHtml(null); // 末尾（最終セクションと下端の間）への追加ゾーン
   host.innerHTML = shown ? (html) : `<div class="empty">該当する作業がありません</div>${sectionInsertHtml(null)}`;
   bindBoardEvents();
+  focusNewCatName(); // 「＋」で追加した直後は、そのセクション名をその場で入力できるようフォーカス
 }
 
 const collator = new Intl.Collator("ja", { numeric: true, sensitivity: "base" });
@@ -477,6 +522,11 @@ function compareByField(a, b, field){
     if (da == null) return 1;
     if (db == null) return -1;
     return da - db;
+  }
+  if (field === "prio"){
+    // 🔴→🟡→🟢→なし の順
+    const ord = {"🔴":0,"🟡":1,"🟢":2,"":3};
+    return (ord[a.prio]??3) - (ord[b.prio]??3);
   }
   return collator.compare(a[field]||"", b[field]||"");
 }
@@ -497,6 +547,19 @@ function sectionInsertHtml(beforeCat){
   return `<div class="sec-insert-zone" data-before-cat="${beforeCat==null?"":esc(beforeCat)}" title="ここにセクションを追加"><span class="plus">＋</span></div>`;
 }
 
+// 「優先度」列のセレクト。値: ""（なし）/ 🔴🟡🟢。今週TODOでもこの優先度が使われる。
+function prioSelectHtml(t){
+  const opt = (v,label)=>`<option value="${v}" ${v===(t.prio||"")?"selected":""}>${label}</option>`;
+  return `<select class="prio-select${t.prio?"":" off"}" title="優先度を設定（今週TODOに反映）">
+    ${opt("","‐")}${opt("🔴","🔴")}${opt("🟡","🟡")}${opt("🟢","🟢")}
+  </select>`;
+}
+
+// 「今週」列のトグル。今週TODOに含めるか否かのフラグ。
+function weekToggleHtml(t){
+  return `<button class="del-btn week-btn" title="今週TODO 切替">${t.week?"🚩":"·"}</button>`;
+}
+
 function rowHtml(t, opts){
   opts = opts || {};
   const statusOpts = STATUSES.map(s=>`<option ${s===t.status?"selected":""}>${s}</option>`).join("");
@@ -504,14 +567,12 @@ function rowHtml(t, opts){
   const periodContClass = contClass; // 期間もグループキーの一部。先頭行のみ表示
   const isSel = selectedIds.has(t.id);
   const trClasses = [
-    t.done ? "row-done" : "",
     opts.isGroupStart ? "group-start" : "",
     opts.groupEven ? "group-even" : "group-odd",
     isSel ? "row-selected" : ""
   ].filter(Boolean).join(" ");
   return `<tr data-id="${t.id}" class="${trClasses}">
     <td class="drag-cell"><span class="drag-handle" title="ドラッグで並び替え／Shift・Ctrlクリックで複数選択">⠿</span></td>
-    <td class="done-cell"><input type="checkbox" class="chk-done" ${t.done?"checked":""}></td>
     <td class="editable${contClass}" data-field="sub" contenteditable>${esc(t.sub)}</td>
     <td class="editable content${contClass}" data-field="content" contenteditable>${esc(t.content)}</td>
     <td class="editable${periodContClass}" data-field="period" contenteditable>${esc(t.period)}</td>
@@ -519,7 +580,8 @@ function rowHtml(t, opts){
     <td><select class="status-select" style="${statusStyle(t.status)}">${statusOpts}</select></td>
     <td class="editable" data-field="due" contenteditable>${esc(t.due)}</td>
     <td class="editable" data-field="note" contenteditable>${esc(t.note)}</td>
-    <td class="done-cell"><button class="del-btn week-btn" title="今週TODO 切替">${t.week?"🗓":"·"}</button></td>
+    <td class="done-cell">${prioSelectHtml(t)}</td>
+    <td class="done-cell">${weekToggleHtml(t)}</td>
     <td class="done-cell"><button class="del-btn row-del" title="削除">🗑</button></td>
   </tr>`;
 }
@@ -550,28 +612,7 @@ function bindBoardEvents(){
     sel.addEventListener("change", ()=>{
       const t = getTask(+sel.closest("tr").dataset.id);
       t.status = sel.value; sel.style.cssText = statusStyle(t.status);
-      // 状況を「完了」にしたら完了チェックも入れる／それ以外なら外す
-      const newDone = (t.status === "完了");
-      if (t.done !== newDone){
-        t.done = newDone; save();
-        renderBoard(); return;
-      }
       save();
-    });
-  });
-  host.querySelectorAll(".chk-done").forEach(chk=>{
-    chk.addEventListener("change", ()=>{
-      const tr = chk.closest("tr"); const t = getTask(+tr.dataset.id);
-      t.done = chk.checked;
-      // 完了チェックを入れたら状況を「完了」に。外したら直前の状況へ戻す
-      if (t.done){
-        if (t.status !== "完了"){ t.prevStatus = t.status; t.status = "完了"; }
-      } else {
-        if (t.status === "完了"){ t.status = t.prevStatus || "待ち"; }
-        delete t.prevStatus;
-      }
-      save();
-      renderBoard();
     });
   });
   // 行の選択（複数まとめて移動用）。ハンドルを Shift/Ctrl クリックで選択。
@@ -598,10 +639,22 @@ function bindBoardEvents(){
       updateSelectionBar();
     });
   });
+  // 優先度セレクト（今週TODOにも反映）
+  host.querySelectorAll(".prio-select").forEach(sel=>{
+    sel.addEventListener("change", ()=>{
+      const t = getTask(+sel.closest("tr").dataset.id);
+      t.prio = sel.value; // ""（なし）/ 🔴 / 🟡 / 🟢
+      sel.classList.toggle("off", !t.prio);
+      save();
+    });
+  });
+  // 今週トグル（今週TODOに含めるか否か）
   host.querySelectorAll(".week-btn").forEach(b=>{
     b.addEventListener("click", ()=>{
       const t = getTask(+b.closest("tr").dataset.id);
-      t.week = !t.week; b.textContent = t.week?"🗓":"·"; save();
+      t.week = !t.week; b.textContent = t.week?"🚩":"·";
+      normalizeTodoOrder(); // 週内タスクの増減を todoOrder に反映
+      save();
       toast(t.week?"今週TODOに追加しました":"今週TODOから外しました");
     });
   });
@@ -646,9 +699,36 @@ function bindBoardEvents(){
     el.addEventListener("blur", ()=>{
       const oldName = el.closest("section.cat").dataset.cat;
       const newName = el.innerText.trim();
+      const isNew = !!el.dataset.newSection;
+      delete el.dataset.newSection;
+      // 新規追加したセクションが未入力（仮名のまま／空）で確定された場合は、そのセクションを取り消す
+      if (isNew && (!newName || newName === oldName)){
+        cancelNewSection(oldName);
+        return;
+      }
+      // 新規追加で既存名と重複した場合も、仮のセクションを残さず取り消す
+      if (isNew && catOrder.includes(newName)){
+        toast(`「${newName}」は既に存在します`);
+        cancelNewSection(oldName);
+        return;
+      }
       renameSection(oldName, newName, el);
     });
-    el.addEventListener("keydown", e=>{ if(e.key==="Enter"){ e.preventDefault(); el.blur(); } });
+    el.addEventListener("keydown", e=>{
+      if (e.key === "Enter"){ e.preventDefault(); el.blur(); }
+      else if (e.key === "Escape"){
+        e.preventDefault();
+        // 新規セクションの入力を Esc → そのセクションごと取り消し。既存改名なら元の名称へ戻す
+        if (el.dataset.newSection){
+          const name = el.closest("section.cat").dataset.cat;
+          delete el.dataset.newSection;
+          cancelNewSection(name);
+        } else {
+          el.innerText = el.closest("section.cat").dataset.cat;
+          el.blur();
+        }
+      }
+    });
     // 名称編集中はセクションのドラッグを無効化（handle以外からのdrag誤発火防止）
     el.addEventListener("mousedown", e=>e.stopPropagation());
   });
@@ -733,18 +813,47 @@ function moveSection(dragCat, targetCat, after){
 
 // ---- セクションの追加・削除・名称変更 ----
 // beforeCat を指定するとその直前に挿入。null/未指定なら末尾。
+// prompt を使わず、仮名のセクションを作成してその場（見出し）で名称を入力できるようにする。
 function addSection(beforeCat){
-  const name = (prompt("追加するセクションの名称を入力してください") || "").trim();
-  if (!name) return;
-  if (catOrder.includes(name)){ toast(`「${name}」は既に存在します`); return; }
+  const name = uniqueCatName("新しいセクション");
   const idx = beforeCat ? catOrder.indexOf(beforeCat) : -1;
   if (idx >= 0) catOrder.splice(idx, 0, name); else catOrder.push(name);
+  newCatName = name; // renderBoard 後にこの見出しへフォーカス＆全選択する目印
   save();
   renderBoard();
-  toast(`セクション「${name}」を追加しました`);
-  // 追加したセクションまでスクロール
-  const sec = [...document.querySelectorAll("#boardView section.cat")].find(s=>s.dataset.cat===name);
-  if (sec) sec.scrollIntoView({ block: "center", behavior: "smooth" });
+}
+
+// base をもとに、catOrder に無い一意なセクション名を返す（"新しいセクション" → "新しいセクション 2" …）
+function uniqueCatName(base){
+  if (!catOrder.includes(base)) return base;
+  let n = 2;
+  while (catOrder.includes(`${base} ${n}`)) n++;
+  return `${base} ${n}`;
+}
+
+// 新規追加したセクションの名称入力を取り消す（Esc／未入力のまま確定時）。
+// 追加直後は所属タスクが無いので、そのままセクションを削除する。
+function cancelNewSection(name){
+  catOrder = catOrder.filter(c=>c!==name);
+  save();
+  renderBoard();
+}
+
+// 追加直後のセクション見出しにフォーカスし、テキストを全選択して即入力できるようにする
+function focusNewCatName(){
+  if (!newCatName) return;
+  const target = newCatName; newCatName = null;
+  const sec = [...document.querySelectorAll("#boardView section.cat")].find(s=>s.dataset.cat===target);
+  if (!sec) return;
+  sec.scrollIntoView({ block: "center", behavior: "smooth" });
+  const el = sec.querySelector(".cat-name");
+  if (!el) return;
+  el.dataset.newSection = "1"; // Esc キャンセル時にこのセクションごと削除するための目印
+  el.focus();
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  const sel = window.getSelection();
+  sel.removeAllRanges(); sel.addRange(range);
 }
 
 function deleteSection(cat){
@@ -974,16 +1083,6 @@ function clearSelection(){
   updateSelectionBar();
 }
 
-// 完了したタスクを一括削除
-function deleteDoneTasks(){
-  const doneCount = tasks.filter(t=>t.done).length;
-  if (doneCount===0){ toast("完了したタスクはありません"); return; }
-  if (!confirm(`完了した ${doneCount} 件のタスクを削除します。よろしいですか？`)) return;
-  tasks = tasks.filter(t=>!t.done);
-  save();
-  renderBoard();
-  toast(`完了した ${doneCount} 件を削除しました`);
-}
 
 // 選択件数バーの表示更新（ボード・今週TODO 両方）
 function updateSelectionBar(){
@@ -1094,28 +1193,24 @@ function priorityFromDays(days){
   return "🟢";
 }
 
-// ボードの未完了作業から今週TODOを全置換で再生成する。
-// 対象: 未完了 かつ（10日以内が期日 or 期日未定）。遠い将来の日付は除外。
+// ボードの作業から今週TODOを全置換で再生成する。
+// 対象: 期日が今週（当日〜6日以内）のタスク。優先度はボードで設定した値をそのまま使う。
 function refreshTodoFromBoard(){
   const targets = tasks.filter(t=>{
-    if (t.done) return false;
     const work = (t.work||"").replace(/^・/, "").trim();
     if (!work || work === "-") return false; // 作業が空・プレースホルダ(-)の行は対象外
     const days = parseDueDays(t.due);
-    return (days == null) || (days <= 10);    // 未定 or 10日以内
+    return days != null && days >= 0 && days <= 6; // 今週（当日〜6日以内）
   });
-  if (!confirm(`ボードの内容から今週TODOを再生成します。\n対象 ${targets.length} 件。現在の今週TODOの手動調整（対象指定・優先度）は上書きされます。よろしいですか？`)){
+  if (!confirm(`ボードの内容から今週TODOを再生成します。\n期日が今週のタスク ${targets.length} 件が対象です。現在の今週TODOは上書きされます。よろしいですか？`)){
     return;
   }
   const targetIds = new Set(targets.map(t=>t.id));
   tasks.forEach(t=>{
-    if (targetIds.has(t.id)){
-      t.week = true;
-      t.prio = priorityFromDays(parseDueDays(t.due));
-    } else {
-      t.week = false;
-    }
+    // week フラグのみ更新。優先度（t.prio）はボードで設定した値をそのまま引き継ぐ。
+    t.week = targetIds.has(t.id);
   });
+  todoOrder = []; // 再生成時は並び順もボード順でリセット（renderTodo内で再構築）
   save();
   renderTodo();
   toast(`今週TODOを更新しました（${targets.length}件）`);
@@ -1124,16 +1219,19 @@ function refreshTodoFromBoard(){
 // ---- レンダリング：今週TODO ----
 function renderTodo(){
   const host = document.getElementById("todoView");
-  let items = tasks.filter(t=>t.week);
-  if (!items.length){ host.innerHTML = `<div class="empty">今週対象の作業がありません。<br>ボードの各行の🗓ボタンで追加できます。</div>`; return; }
+  normalizeTodoOrder(); // 週内タスクの増減に追従（ボードの tasks 順序には影響しない）
+  // 今週TODO専用の並び順（todoOrder）で週内タスクを並べる。ボードの tasks 配列とは独立。
+  let items = todoOrder.map(id=>getTask(id)).filter(t=>t && t.week);
+  if (!items.length){ host.innerHTML = `<div class="empty">今週対象の作業がありません。<br>ボードの各行の🚩ボタンで追加できます。</div>`; return; }
 
   const order = {"🔴":0,"🟡":1,"🟢":2,"":3};
   const groups = [
-    {key:"🔴", label:"🔴 高（今週前半が期日）"},
-    {key:"🟡", label:"🟡 中（今週中〜来週前半）"},
-    {key:"🟢", label:"🟢 低（期日未定・要確認）"},
-    {key:"",   label:"優先度なし"},
+    {key:"🔴", label:"🔴 高"},
+    {key:"🟡", label:"🟡 中"},
+    {key:"🟢", label:"🟢 低"},
+    {key:"",   label:"‐ 優先度なし"},
   ];
+  // 優先度でグループ分け（安定ソート＝同一優先度内は todoOrder の順を保持）
   items.sort((a,b)=>(order[a.prio]-order[b.prio]));
   let html = "";
   for (const g of groups){
@@ -1145,26 +1243,26 @@ function renderTodo(){
       <h3><button class="prio-toggle" title="折り畳み/展開">${collapsed?"▶":"▼"}</button>${g.label} <span>(${gi.length})</span></h3>`;
     if (!collapsed){
     for (const t of gi){
-      const note = (t.note||"").trim();
       const isSel = selectedIds.has(t.id);
+      const statusOpts = STATUSES.map(s=>`<option ${s===t.status?"selected":""}>${s}</option>`).join("");
       html += `<div class="todo-item ${t.done?'done':''}${isSel?' todo-selected':''}" data-id="${t.id}">
         <span class="todo-drag-handle" title="ドラッグで並び替え／Shift・Ctrlクリックで複数選択">⠿</span>
         <input type="checkbox" class="todo-check" ${t.done?"checked":""}>
         <select class="prio-select" title="優先度">
-          <option value="" ${t.prio===""?"selected":""}>⚪</option>
+          <option value="" ${t.prio===""?"selected":""}>‐</option>
           <option value="🔴" ${t.prio==="🔴"?"selected":""}>🔴</option>
           <option value="🟡" ${t.prio==="🟡"?"selected":""}>🟡</option>
           <option value="🟢" ${t.prio==="🟢"?"selected":""}>🟢</option>
         </select>
         <div class="todo-main">
           <div class="todo-title-row">
-            <div class="todo-content">${esc(t.work||t.content)}</div>
-            ${note ? `<div class="todo-note">📝 ${esc(note)}</div>` : ""}
+            <div class="todo-content todo-edit" data-field="work" contenteditable title="クリックで作業名を編集">${esc(t.work||t.content)}</div>
           </div>
-          <div class="todo-sub"><span class="todo-cat-badge">${esc(t.category)}</span> ${esc(t.sub)}${t.content&&t.content!==t.work?" / "+esc(t.content):""}${t.due?" ・ 期限 "+esc(t.due):""}</div>
+          <div class="todo-sub"><span class="todo-cat-badge">${esc(t.category)}</span> ${esc(t.sub)}${t.content&&t.content!==t.work?" / "+esc(t.content):""} ・ 期限 <span class="todo-due todo-edit" data-field="due" contenteditable title="クリックで期限・作業日を編集">${esc(t.due)}</span></div>
         </div>
-        <span class="badge" style="${statusStyle(t.status)}">${esc(t.status)}</span>
-        <button class="del-btn week-remove" title="今週から外す">🗓✕</button>
+        <div class="todo-note"><span>📝</span><span class="todo-note-edit todo-edit" data-field="note" contenteditable title="クリックで備考を編集">${esc(t.note)}</span></div>
+        <select class="status-select todo-status" style="${statusStyle(t.status)}" title="状況を変更">${statusOpts}</select>
+        <button class="del-btn week-remove" title="今週から外す">🚩✕</button>
       </div>`;
     }
     }
@@ -1183,13 +1281,46 @@ function renderTodo(){
   host.querySelectorAll(".todo-check").forEach(chk=>{
     chk.addEventListener("change", ()=>{
       const t = getTask(+chk.closest(".todo-item").dataset.id);
-      t.done = chk.checked; save(); renderTodo();
+      t.done = chk.checked;
+      if (t.done){
+        t.prevStatus = t.status; t.status = "完了";
+      } else {
+        t.status = t.prevStatus || "待ち"; delete t.prevStatus;
+      }
+      save(); renderTodo();
     });
   });
   host.querySelectorAll(".prio-select").forEach(sel=>{
     sel.addEventListener("change", ()=>{
       const t = getTask(+sel.closest(".todo-item").dataset.id);
       t.prio = sel.value; save(); renderTodo();
+    });
+  });
+  // 状況セレクト（ボードにも反映）。完了⇔それ以外の切替でチェック状態も同期。
+  host.querySelectorAll(".status-select").forEach(sel=>{
+    sel.addEventListener("change", ()=>{
+      const t = getTask(+sel.closest(".todo-item").dataset.id);
+      t.status = sel.value;
+      t.done = (t.status === "完了");
+      if (!t.done) delete t.prevStatus;
+      save(); renderTodo();
+    });
+  });
+  // インライン編集セル（作業名・期限・作業日・備考）。ボードと同じデータを直接編集。
+  host.querySelectorAll(".todo-edit").forEach(el=>{
+    el.addEventListener("blur", ()=>{
+      const t = getTask(+el.closest(".todo-item").dataset.id);
+      const field = el.dataset.field;
+      const val = el.innerText.trim();
+      if (t[field] === val) return;
+      t[field] = val;
+      save();
+      // 備考・期限の空⇔非空でプレースホルダやサブ行表示が変わるため再描画
+      renderTodo();
+    });
+    el.addEventListener("keydown", e=>{
+      // 作業名・期限は Enter で確定（改行しない）。備考は Shift+Enter で改行可。
+      if (e.key==="Enter" && !e.shiftKey){ e.preventDefault(); el.blur(); }
     });
   });
   host.querySelectorAll(".week-remove").forEach(b=>{
@@ -1278,36 +1409,38 @@ function bindTodoSelectionAndDnD(host){
   });
 }
 
-// 今週TODO内でドラッグ移動。移動先の優先度に合わせ、tasks配列上で並べ替える。
+// 今週TODO内でドラッグ移動。todoOrder（今週TODO専用の並び順）のみを操作し、
+// ボードの tasks 配列の順序には一切影響しない。移動先の優先度には揃える。
 function moveTodoTasks(dragIds, targetId, after){
   const target = getTask(targetId);
   if (!target) return;
-  const movedTasks = tasks.filter(t=>dragIds.includes(t.id));
-  if (!movedTasks.length) return;
-  const changedPrio = movedTasks.some(t=>t.prio !== target.prio);
-  tasks = tasks.filter(t=>!dragIds.includes(t.id));
-  movedTasks.forEach(t=>{ t.prio = target.prio; }); // 移動先グループの優先度に揃える
-  let to = tasks.findIndex(t=>t.id===targetId);
-  if (to<0){ tasks.push(...movedTasks); }
-  else { if (after) to += 1; tasks.splice(to, 0, ...movedTasks); }
+  // 移動対象を todoOrder の現在順で取り出す
+  const movedIds = todoOrder.filter(id=>dragIds.includes(id));
+  if (!movedIds.length) return;
+  const changedPrio = movedIds.some(id=>getTask(id).prio !== target.prio);
+  movedIds.forEach(id=>{ getTask(id).prio = target.prio; }); // 移動先グループの優先度に揃える
+  todoOrder = todoOrder.filter(id=>!dragIds.includes(id));
+  let to = todoOrder.indexOf(targetId);
+  if (to<0){ todoOrder.push(...movedIds); }
+  else { if (after) to += 1; todoOrder.splice(to, 0, ...movedIds); }
   save(); renderTodo();
-  if (changedPrio) toast(`${movedTasks.length}件の優先度を変更しました`);
-  else if (movedTasks.length>1) toast(`${movedTasks.length}件を移動しました`);
+  if (changedPrio) toast(`${movedIds.length}件の優先度を変更しました`);
+  else if (movedIds.length>1) toast(`${movedIds.length}件を移動しました`);
   clearSelection();
 }
 
-// グループ見出しへドロップ：指定優先度の末尾へ移動
+// グループ見出しへドロップ：指定優先度の末尾へ移動（todoOrder のみ操作）
 function moveTodoToGroup(dragIds, prio){
-  const movedTasks = tasks.filter(t=>dragIds.includes(t.id));
-  if (!movedTasks.length) return;
-  tasks = tasks.filter(t=>!dragIds.includes(t.id));
-  movedTasks.forEach(t=>{ t.prio = prio; });
-  // 同優先度の最後の要素の直後へ（週内のみ対象）
+  const movedIds = todoOrder.filter(id=>dragIds.includes(id));
+  if (!movedIds.length) return;
+  movedIds.forEach(id=>{ getTask(id).prio = prio; });
+  todoOrder = todoOrder.filter(id=>!dragIds.includes(id));
+  // 同優先度の最後の要素の直後へ
   let lastIdx = -1;
-  tasks.forEach((t,i)=>{ if (t.week && t.prio===prio) lastIdx = i; });
-  if (lastIdx>=0) tasks.splice(lastIdx+1, 0, ...movedTasks); else tasks.push(...movedTasks);
+  todoOrder.forEach((id,i)=>{ const t=getTask(id); if (t && t.week && t.prio===prio) lastIdx = i; });
+  if (lastIdx>=0) todoOrder.splice(lastIdx+1, 0, ...movedIds); else todoOrder.push(...movedIds);
   save(); renderTodo();
-  toast(`${movedTasks.length}件を移動しました`);
+  toast(`${movedIds.length}件を移動しました`);
   clearSelection();
 }
 
@@ -1318,6 +1451,20 @@ function deleteDoneTodoTasks(){
   if (!confirm(`今週TODOの完了した ${doneCount} 件を削除します。よろしいですか？`)) return;
   tasks = tasks.filter(t=>!(t.week && t.done));
   save(); renderTodo();
+  toast(`完了した ${doneCount} 件を削除しました`);
+}
+
+// 案件状況ボードの完了（状況＝完了）タスクを一括削除。
+// セクションフィルタが有効なときは、そのセクション内の完了タスクのみを対象にする。
+function deleteDoneBoardTasks(){
+  const fCat = document.getElementById("filterCat").value;
+  const isDone = t => t.status === "完了" && (!fCat || t.category === fCat);
+  const doneCount = tasks.filter(isDone).length;
+  if (doneCount===0){ toast(fCat ? `「${fCat}」に完了したタスクはありません` : "完了したタスクはありません"); return; }
+  const scope = fCat ? `セクション「${fCat}」の` : "";
+  if (!confirm(`${scope}状況が「完了」のタスク ${doneCount} 件を削除します。よろしいですか？`)) return;
+  tasks = tasks.filter(t=>!isDone(t));
+  save(); renderBoard();
   toast(`完了した ${doneCount} 件を削除しました`);
 }
 
@@ -1432,7 +1579,9 @@ function buildBoardMd(){
   return out.trim();
 }
 function buildTodoMd(date){
-  const week = tasks.filter(t=>t.week);
+  normalizeTodoOrder();
+  // 画面表示（今週TODO）と同じ並び順で書き出す
+  const week = todoOrder.map(id=>getTask(id)).filter(t=>t && t.week);
   const order = {"🔴":0,"🟡":1,"🟢":2,"":3};
   week.sort((a,b)=>order[a.prio]-order[b.prio]);
   let out = `# 今週のTODOリスト（更新: ${date}）\n\n`;
@@ -1444,11 +1593,80 @@ function buildTodoMd(date){
   return out;
 }
 function cell(s){ return (s||"").replace(/\|/g,"\\|").replace(/\n/g,"<br>"); }
-function downloadText(name, text){
-  const blob = new Blob([text], {type:"text/markdown;charset=utf-8"});
+function downloadText(name, text, mime){
+  const blob = new Blob([text], {type: mime || "text/markdown;charset=utf-8"});
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob); a.download = name; a.click();
   URL.revokeObjectURL(a.href);
+}
+
+// ---- データ移行（バックアップ／復元） ----
+// アプリの全状態を1つのJSONに書き出す。別ブラウザ・別PCへ移してこのファイルを「復元」すれば
+// セクション・タスク・今週TODO・並び順・折り畳み状態などをそのまま再現できる。
+const BACKUP_FORMAT = "um_todo_app_backup";
+function backupData(){
+  const payload = {
+    format: BACKUP_FORMAT,
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    data: {
+      tasks,
+      catOrder,
+      todoOrder,
+      collapsedCats: [...collapsedCats],
+      collapsedPrios: [...collapsedPrios],
+      exportName: document.getElementById("exportName").value,
+    },
+  };
+  const date = document.getElementById("updateDate").textContent || "yyyymmdd";
+  const name = document.getElementById("exportName").value.trim() || "名前未設定";
+  downloadText(`${date}_TODO管理データ_${name}.json`, JSON.stringify(payload, null, 2), "application/json;charset=utf-8");
+  toast("全データをバックアップしました");
+}
+
+// 復元ボタン → 非表示のファイル入力を開く
+function triggerRestore(){
+  const input = document.getElementById("restoreFile");
+  input.value = ""; // 同じファイルを連続選択しても change が発火するように
+  input.click();
+}
+
+// 選択されたJSONファイルを読み込み、検証してから全状態を置き換える
+function restoreFromFile(file){
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    let parsed;
+    try { parsed = JSON.parse(reader.result); }
+    catch(e){ alert("ファイルの読み込みに失敗しました。JSON形式ではないようです。"); return; }
+    // 本アプリのバックアップJSON（{format, data:{tasks,...}}）と、
+    // localStorage生データ（{tasks,...}）の両方を受け付ける
+    const d = (parsed && parsed.format === BACKUP_FORMAT && parsed.data) ? parsed.data : parsed;
+    if (!d || !Array.isArray(d.tasks)){
+      alert("このファイルには有効なデータが含まれていません（tasks が見つかりません）。");
+      return;
+    }
+    const count = d.tasks.length;
+    const catCount = Array.isArray(d.catOrder) ? d.catOrder.length : 0;
+    if (!confirm(`データを復元します。\nセクション ${catCount} 件・タスク ${count} 件で、現在の内容はすべて上書きされます。よろしいですか？`)) return;
+    // 状態を差し替え
+    tasks = d.tasks.map(t=>({...t}));
+    catOrder = Array.isArray(d.catOrder) ? d.catOrder.slice() : [];
+    todoOrder = Array.isArray(d.todoOrder) ? d.todoOrder.slice() : [];
+    collapsedCats = new Set(Array.isArray(d.collapsedCats) ? d.collapsedCats : []);
+    collapsedPrios = new Set(Array.isArray(d.collapsedPrios) ? d.collapsedPrios : []);
+    if (typeof d.exportName === "string") document.getElementById("exportName").value = d.exportName;
+    // 整合性を取り直す（未知の分類の補完・週内タスクの並び順・ID採番）
+    normalizeCatOrder();
+    normalizeTodoOrder();
+    _id = tasks.reduce((m,t)=>Math.max(m, t.id||0), 0);
+    save();
+    refreshCatSelects();
+    switchView(currentView);
+    toast(`復元しました（タスク ${count} 件）`);
+  };
+  reader.onerror = () => alert("ファイルの読み込み中にエラーが発生しました。");
+  reader.readAsText(file);
 }
 
 // ---- 初期化 ----
@@ -1491,8 +1709,8 @@ function bindGlobal(){
   document.getElementById("clearSelBtn").addEventListener("click", clearSelection);
   document.getElementById("todoClearSelBtn").addEventListener("click", clearSelection);
   document.getElementById("resetSortBtn").addEventListener("click", resetAllSort);
-  document.getElementById("deleteDoneBtn").addEventListener("click", deleteDoneTasks);
   document.getElementById("deleteDoneTodoBtn").addEventListener("click", deleteDoneTodoTasks);
+  document.getElementById("deleteDoneBoardBtn").addEventListener("click", deleteDoneBoardTasks);
   document.getElementById("collapseAllBtn").addEventListener("click", ()=>{
     catOrder.forEach(c=>collapsedCats.add(c)); save(); renderBoard();
   });
@@ -1502,6 +1720,9 @@ function bindGlobal(){
   document.getElementById("cancelBtn").addEventListener("click", closeModal);
   document.getElementById("saveBtn").addEventListener("click", saveModal);
   document.getElementById("exportBtn").addEventListener("click", exportMarkdown);
+  document.getElementById("backupBtn").addEventListener("click", backupData);
+  document.getElementById("restoreBtn").addEventListener("click", triggerRestore);
+  document.getElementById("restoreFile").addEventListener("change", e=>{ restoreFromFile(e.target.files[0]); });
   document.getElementById("exportName").addEventListener("change", save);
   document.getElementById("overlay").addEventListener("click", e=>{ if(e.target.id==="overlay") closeModal(); });
   document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeModal(); });
