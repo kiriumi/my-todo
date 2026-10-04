@@ -393,12 +393,20 @@ function normalizeCatOrder(){
   tasks.forEach(t=>{ if (t.category && !seen.has(t.category)){ catOrder.push(t.category); seen.add(t.category); } });
 }
 
+// 完了チェック（done）を状況（status）に合わせる。状況が「完了」なら done=true。
+// ボードやモーダルで状況を変更した場合も今週TODOのチェック・一括削除に反映させるため。
+function syncDone(t){
+  t.done = (t.status === "完了");
+  if (!t.done) delete t.prevStatus;
+}
+
 function load(){
   const raw = localStorage.getItem(STORAGE_KEY);
   if (raw) {
     try {
       const s = JSON.parse(raw);
       tasks = s.tasks || [];
+      tasks.forEach(syncDone);
       catOrder = Array.isArray(s.catOrder) ? s.catOrder : CATEGORIES.slice();
       collapsedCats = new Set(Array.isArray(s.collapsedCats) ? s.collapsedCats : []);
       collapsedPrios = new Set(Array.isArray(s.collapsedPrios) ? s.collapsedPrios : []);
@@ -412,6 +420,7 @@ function load(){
     } catch(e){ /* fall through */ }
   }
   tasks = SEED.map(t=>({...t}));
+  tasks.forEach(syncDone);
   catOrder = CATEGORIES.slice();
   todoOrder = [];
   normalizeTodoOrder();
@@ -612,6 +621,7 @@ function bindBoardEvents(){
     sel.addEventListener("change", ()=>{
       const t = getTask(+sel.closest("tr").dataset.id);
       t.status = sel.value; sel.style.cssText = statusStyle(t.status);
+      syncDone(t);
       save();
     });
   });
@@ -1301,8 +1311,7 @@ function renderTodo(){
     sel.addEventListener("change", ()=>{
       const t = getTask(+sel.closest(".todo-item").dataset.id);
       t.status = sel.value;
-      t.done = (t.status === "完了");
-      if (!t.done) delete t.prevStatus;
+      syncDone(t);
       save(); renderTodo();
     });
   });
@@ -1523,9 +1532,9 @@ function saveModal(){
     note: document.getElementById("f_note").value.trim(),
     week: document.getElementById("f_week").checked,
   };
-  if (editingId){ Object.assign(getTask(editingId), data); }
+  if (editingId){ const t = getTask(editingId); Object.assign(t, data); syncDone(t); }
   else {
-    const newTask = { id: ++_id, done:false, ...data };
+    const newTask = { id: ++_id, done: data.status === "完了", ...data };
     if (insertContext && insertContext.beforeId != null){
       const idx = tasks.findIndex(t=>t.id===insertContext.beforeId);
       if (idx>=0) tasks.splice(idx, 0, newTask); else tasks.push(newTask);
@@ -1651,6 +1660,7 @@ function restoreFromFile(file){
     if (!confirm(`データを復元します。\nセクション ${catCount} 件・タスク ${count} 件で、現在の内容はすべて上書きされます。よろしいですか？`)) return;
     // 状態を差し替え
     tasks = d.tasks.map(t=>({...t}));
+    tasks.forEach(syncDone);
     catOrder = Array.isArray(d.catOrder) ? d.catOrder.slice() : [];
     todoOrder = Array.isArray(d.todoOrder) ? d.todoOrder.slice() : [];
     collapsedCats = new Set(Array.isArray(d.collapsedCats) ? d.collapsedCats : []);
